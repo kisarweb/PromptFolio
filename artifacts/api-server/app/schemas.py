@@ -95,6 +95,7 @@ class ChatSessionInput(BaseModel):
 class ChatMessageInput(BaseModel):
     content: str = Field(min_length=1)
     agentId: Optional[str] = None
+    engineId: Optional[str] = None
 
 
 class PublishInput(BaseModel):

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import ai
 from ..auth import current_user
 from ..db import get_db
-from ..engines import assistant_engine, chat_engine_for_agent
+from ..engines import assistant_engine, chat_engine_for_agent, resolve_engine
 from ..models import Agent, ChatMessage, ChatSession, Prompt, User
 from ..schemas import ChatMessageInput, ChatSessionInput, PublishInput
 from .. import variables as var_docs
@@ -116,13 +116,17 @@ async def send_message(id: str, body: ChatMessageInput, user: User = Depends(cur
     db.add(user_msg)
     await db.flush()
 
-    engine = await chat_engine_for_agent(db, user, agent.preferred_mcp_id)
+    lang = user.language  # read before a possible rollback expires the ORM object
+    if body.engineId:
+        engine = await resolve_engine(db, user, "text", body.engineId)
+    else:
+        engine = await chat_engine_for_agent(db, user, agent.preferred_mcp_id)
     convo = [{"role": m.role, "content": m.content} for m in prior] + [{"role": "user", "content": user_msg.content}]
     try:
         reply = await ai.chat_complete(engine, agent.system_prompt + language_directive(user.language), convo, agent.temperature)
     except ai.EngineError as exc:
         await db.rollback()  # discards the user message and the lock set in this request
-        raise HTTPException(status_code=exc.status if exc.code else 502, detail=exc.localized(user.language) if exc.code else f"AI engine error: {exc.message}")
+        raise HTTPException(status_code=exc.status if exc.code else 502, detail=exc.localized(lang) if exc.code else f"AI engine error: {exc.message}")
 
     assistant_msg = ChatMessage(session_id=s.id, role="assistant", content=reply)
     db.add(assistant_msg)

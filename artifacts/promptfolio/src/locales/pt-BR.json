@@ -129,6 +129,7 @@
     }
   },
   "builder": {
+    "model": "Modelo:",
     "agentsTitle": "Criar Agentes",
     "promptsTitle": "Criar Prompts",
     "agentsSubtitle": "Converse com um meta-agente para desenhar um novo agente especialista.",

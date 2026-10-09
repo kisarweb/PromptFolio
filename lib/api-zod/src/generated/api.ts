@@ -596,7 +596,8 @@ export const SendBuilderMessageParams = zod.object({
 
 export const SendBuilderMessageBody = zod.object({
   "content": zod.string().min(1),
-  "agentId": zod.string().nullish().describe('Required only for the first message of a session')
+  "agentId": zod.string().nullish().describe('Required only for the first message of a session'),
+  "engineId": zod.string().nullish().describe('Text engine (delivery capabilities id) to answer with; defaults to the agent\'s preferred connection')
 })
 
 export const SendBuilderMessageResponse = zod.object({

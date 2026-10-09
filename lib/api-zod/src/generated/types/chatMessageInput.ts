@@ -14,4 +14,9 @@ export interface ChatMessageInput {
      * @nullable
      */
   agentId?: string | null;
+  /**
+     * Text engine (delivery capabilities id) to answer with; defaults to the agent's preferred connection
+     * @nullable
+     */
+  engineId?: string | null;
 }

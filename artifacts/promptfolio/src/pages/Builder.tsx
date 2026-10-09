@@ -7,7 +7,7 @@ import { ptBR, enUS } from 'date-fns/locale';
 import { Bot, Braces, Lock, Plus, Send, Trash2, Rocket, MessageSquareDashed, Sparkles, CheckCircle2, ChevronLeft } from 'lucide-react';
 import {
   useListBuilderSessions, useCreateBuilderSession, useDeleteBuilderSession, useGetBuilderSession, useListAgents,
-  useSendBuilderMessage, getListBuilderSessionsQueryKey, getGetBuilderSessionQueryKey, getGetDashboardSummaryQueryKey,
+  useSendBuilderMessage, useGetDeliveryCapabilities, getListBuilderSessionsQueryKey, getGetBuilderSessionQueryKey, getGetDashboardSummaryQueryKey,
   type BuilderWorkspaceType, type ChatSessionDetail,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { useChatStore } from '@/store/useChatStore';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorMessage } from '@/lib/pf';
 import { cn } from '@/lib/utils';
+import { getLastEngine, setLastEngine } from '@/lib/engines';
 
 export default function Builder({ kind }: { kind: 'agents' | 'prompts' }) {
   const { t, i18n } = useTranslation();
@@ -125,6 +126,10 @@ function ChatPane({ sessionId, workspace, onBack }: { sessionId: string; workspa
   const { selectedAgentBySession, selectAgent, drafts, setDraft, pending, setPending, publishOpen, setPublishOpen } = useChatStore();
   const text = drafts[sessionId] ?? '';
   const selectedAgent = selectedAgentBySession[sessionId] ?? '';
+  const caps = useGetDeliveryCapabilities();
+  const textEngines = (caps.data?.find((c) => c.modality === 'text')?.engines ?? []).filter((e) => e.available);
+  const [engineId, setEngineId] = useState<string>(() => getLastEngine('text') ?? '');
+  const engine = textEngines.find((e) => e.id === engineId)?.id ?? textEngines[0]?.id ?? '';
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -144,14 +149,14 @@ function ChatPane({ sessionId, workspace, onBack }: { sessionId: string; workspa
     if (ta) { ta.style.height = 'auto'; ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`; }
   }, [text]);
 
-  const canSend = !!text.trim() && !send.isPending && (locked || !!selectedAgent);
+  const canSend = !!text.trim() && !send.isPending && (locked || !!selectedAgent) && !!engine;
 
   const doSend = () => {
     if (!canSend) return;
     const content = text.trim();
     setPending({ sessionId, content });
     setDraft(sessionId, '');
-    send.mutate({ id: sessionId, data: locked ? { content } : { content, agentId: selectedAgent } }, {
+    send.mutate({ id: sessionId, data: locked ? { content, engineId: engine } : { content, agentId: selectedAgent, engineId: engine } }, {
       onSuccess: (ex) => {
         qc.setQueryData<ChatSessionDetail>(getGetBuilderSessionQueryKey(sessionId), (old) => old ? {
           ...old, session: ex.session, messages: [...old.messages, ex.userMessage, ex.assistantMessage],
@@ -254,6 +259,15 @@ function ChatPane({ sessionId, workspace, onBack }: { sessionId: string; workspa
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); } }}
               placeholder={t('builder.placeholder')} className="max-h-[200px] flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground" data-testid="input-message" />
             <Button onClick={doSend} disabled={!canSend} size="icon" className="pop h-10 w-10 shrink-0 rounded-xl" data-testid="button-send"><Send /></Button>
+          </div>
+          <div className="mt-2 flex items-center gap-2 px-1">
+            <span className="shrink-0 text-[11px] text-muted-foreground">{t('builder.model')}</span>
+            {caps.isLoading ? <Skeleton className="h-8 w-56" /> : textEngines.length ? (
+              <Select value={engine} onValueChange={(v) => { setEngineId(v); setLastEngine('text', v); }}>
+                <SelectTrigger className="h-8 w-auto max-w-full text-xs [&>span]:truncate" data-testid="select-builder-engine"><SelectValue /></SelectTrigger>
+                <SelectContent>{textEngines.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}</SelectContent>
+              </Select>
+            ) : <a href={`${import.meta.env.BASE_URL}settings`} className="text-[11px] text-warning underline">{t('delivery.noEngine', { kind: t('settings.kind.text') })}</a>}
           </div>
           <div className="mt-1.5 px-2 text-[11px] text-muted-foreground">{!locked && !selectedAgent ? <span className="text-warning">{t('builder.pickFirst')}</span> : t('builder.hint')}</div>
         </div>

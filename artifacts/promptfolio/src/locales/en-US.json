@@ -129,6 +129,7 @@
     }
   },
   "builder": {
+    "model": "Model:",
     "agentsTitle": "Agent Workshop",
     "promptsTitle": "Prompt Engineering",
     "agentsSubtitle": "Talk with a meta-agent to design a new expert agent.",

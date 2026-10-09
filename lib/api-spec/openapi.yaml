@@ -1216,6 +1216,9 @@ components:
         agentId:
           type: ["string", "null"]
           description: Required only for the first message of a session
+        engineId:
+          type: ["string", "null"]
+          description: Text engine (delivery capabilities id) to answer with; defaults to the agent's preferred connection
     ChatExchange:
       type: object
       required: [session, userMessage, assistantMessage]
