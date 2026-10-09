@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/__pycache__
+**/.media_cache
+.git
+.local
+.cache
+.agents
+.pythonlibs
+attached_assets
+*.tsbuildinfo
+.config
+.upm

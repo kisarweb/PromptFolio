@@ -91,7 +91,10 @@
     "privacy": "O PromptFolio só pede acesso aos arquivos que ele mesmo cria (escopo drive.file).",
     "feature1": "Construtores guiados",
     "feature2": "Catálogo versionado",
-    "feature3": "Quatro modalidades de entrega"
+    "feature3": "Quatro modalidades de entrega",
+    "authErrorTitle": "Não foi possível entrar com o Google",
+    "authError": "O login foi interrompido (código: {{code}}). Tente novamente.",
+    "googleMissing": "O login com Google ainda não foi configurado neste servidor. Avise o administrador."
   },
   "home": {
     "eyebrow": "Visão geral",

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, FlaskConical, Folder, FolderOpen, ShieldCheck, Lock } from 'lucide-react';
@@ -22,6 +23,18 @@ export default function Login({ session }: { session?: SessionInfo }) {
     },
   });
   const googleOk = !!session?.googleOAuthConfigured;
+  const demoOk = !!session?.demoLoginEnabled;
+
+  // The Google OAuth callback redirects back with ?auth_error=<code> when sign-in fails.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('auth_error');
+    if (!code) return;
+    toast({ variant: 'destructive', title: t('login.authErrorTitle'), description: t('login.authError', { code }) });
+    params.delete('auth_error');
+    const qs = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [t, toast]);
 
   return (
     <div className="safelight relative grid min-h-[100dvh] lg:grid-cols-[1.1fr_1fr]">
@@ -70,26 +83,35 @@ export default function Login({ session }: { session?: SessionInfo }) {
             <span className="flex items-center gap-3"><SiGoogle className="h-4 w-4" />{t('login.google')}</span>
             {googleOk ? <ArrowRight /> : <Lock />}
           </Button>
-          {!googleOk && (
+          {!googleOk && !demoOk && (
+            <p className="mt-3 flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs leading-relaxed text-destructive" data-testid="text-google-missing">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />{t('login.googleMissing')}
+            </p>
+          )}
+          {!googleOk && demoOk && (
             <p className="mt-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-xs leading-relaxed text-warning" data-testid="text-google-disabled">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />{t('login.googleDisabled')}
             </p>
           )}
 
-          <div className="my-6 flex items-center gap-3 text-[10px] uppercase tracking-widest text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+          {demoOk && (
+            <>
+              <div className="my-6 flex items-center gap-3 text-[10px] uppercase tracking-widest text-muted-foreground"><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
 
-          <Button
-            size="lg"
-            variant={googleOk ? 'outline' : 'default'}
-            className="pop h-12 w-full justify-between px-5 text-[15px]"
-            disabled={demo.isPending}
-            onClick={() => demo.mutate()}
-            data-testid="button-demo-login"
-          >
-            <span className="flex items-center gap-3"><FlaskConical className="h-4 w-4" />{t('login.demo')}</span>
-            {demo.isPending ? <span className="flex gap-1">{[0, 1, 2].map((i) => <span key={i} className="dot h-1.5 w-1.5 rounded-full bg-current" style={{ animationDelay: `${i * 0.15}s` }} />)}</span> : <ArrowRight />}
-          </Button>
-          <p className="mt-3 text-xs text-muted-foreground">{t('login.demoHint')}</p>
+              <Button
+                size="lg"
+                variant={googleOk ? 'outline' : 'default'}
+                className="pop h-12 w-full justify-between px-5 text-[15px]"
+                disabled={demo.isPending}
+                onClick={() => demo.mutate()}
+                data-testid="button-demo-login"
+              >
+                <span className="flex items-center gap-3"><FlaskConical className="h-4 w-4" />{t('login.demo')}</span>
+                {demo.isPending ? <span className="flex gap-1">{[0, 1, 2].map((i) => <span key={i} className="dot h-1.5 w-1.5 rounded-full bg-current" style={{ animationDelay: `${i * 0.15}s` }} />)}</span> : <ArrowRight />}
+              </Button>
+              <p className="mt-3 text-xs text-muted-foreground">{t('login.demoHint')}</p>
+            </>
+          )}
 
           <div className="mt-8 rounded-xl border bg-card/60 p-4 text-xs text-muted-foreground lg:hidden">
             <div className="mb-1 font-medium text-foreground">{t('login.driveTitle')}</div>

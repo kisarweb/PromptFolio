@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,6 +39,7 @@ def _session_payload(user: User | None) -> dict:
         "user": user_out(user, bool(user.encrypted_google_access_token)) if user else None,
         "googleOAuthConfigured": config.GOOGLE_OAUTH_CONFIGURED,
         "googleLoginUrl": GOOGLE_LOGIN_PATH,
+        "demoLoginEnabled": config.ALLOW_DEMO_LOGIN,
     }
 
 
@@ -49,6 +50,8 @@ async def get_session(user: User | None = Depends(optional_user)):
 
 @router.post("/demo-login")
 async def demo_login(response: Response, db: AsyncSession = Depends(get_db)):
+    if not config.ALLOW_DEMO_LOGIN:
+        raise HTTPException(status_code=403, detail="Demo login is disabled on this server. Sign in with Google.")
     user = (await db.execute(select(User).where(User.email == DEMO_EMAIL))).scalar_one_or_none()
     if user is None:
         user = User(email=DEMO_EMAIL, name="Demo Local", is_demo=True, language="pt-BR", theme="dark", active_storage_provider="google_drive_mcp")

@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 
+from . import config
 from . import models  # noqa: F401  (registers tables)
 from .db import Base, SessionLocal, engine
 from . import references as reference_service
@@ -71,3 +72,22 @@ async def healthz():
 
 for r in (auth.router, dashboard.router, catalog.router, agents.router, builder.router, delivery.router, references.router, settings.router):
     app.include_router(r)
+
+
+# ------------------------------------------------------------------ frontend (single-service deploys)
+# On Replit the platform serves the built SPA separately; elsewhere (e.g. Railway) this process serves it too.
+if (config.STATIC_DIR / "index.html").is_file():
+    _static_root = config.STATIC_DIR.resolve()
+    _index_html = _static_root / "index.html"
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa(full_path: str):
+        if full_path == "api" or full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        candidate = (_static_root / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(_static_root):
+            cache = "public, max-age=31536000, immutable" if full_path.startswith("assets/") else "no-cache"
+            return FileResponse(candidate, headers={"Cache-Control": cache})
+        return FileResponse(_index_html, headers={"Cache-Control": "no-cache"})
+
+    log.info("serving frontend from %s", _static_root)

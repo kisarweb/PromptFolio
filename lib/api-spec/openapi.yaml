@@ -884,16 +884,19 @@ components:
         createdAt: { type: string, format: date-time }
     SessionInfo:
       type: object
-      required: [authenticated, googleOAuthConfigured, googleLoginUrl]
+      required: [authenticated, googleOAuthConfigured, googleLoginUrl, demoLoginEnabled]
       properties:
         authenticated: { type: boolean }
+        demoLoginEnabled:
+          type: boolean
+          description: Whether the shared "Local Demo Login" account is available (off in production)
         user:
           oneOf:
             - $ref: "#/components/schemas/User"
             - type: "null"
         googleOAuthConfigured:
           type: boolean
-          description: When false the UI must offer the "Local Demo Login" button
+          description: Whether real Google sign-in (and Drive) is configured on the server
         googleLoginUrl:
           type: string
           description: Full-page navigation target to start Google OAuth (e.g. /api/auth/google/login)

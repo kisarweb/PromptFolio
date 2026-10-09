@@ -1,1 +1,2 @@
 - [Backend runtime quirks](backend-runtime.md) — FastAPI replaces Express; SQLAlchemy async needs greenlet; verified built-in AI models via proxy.
+- [GitHub access](github-access.md) — the Replit GitHub connection can't push; use the GITHUB_TOKEN secret; repo kisarweb/PromptFolio

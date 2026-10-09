@@ -100,8 +100,10 @@ export interface User {
 
 export interface SessionInfo {
   authenticated: boolean;
+  /** Whether the shared "Local Demo Login" account is available (off in production) */
+  demoLoginEnabled: boolean;
   user?: User | null;
-  /** When false the UI must offer the "Local Demo Login" button */
+  /** Whether real Google sign-in (and Drive) is configured on the server */
   googleOAuthConfigured: boolean;
   /** Full-page navigation target to start Google OAuth (e.g. /api/auth/google/login) */
   googleLoginUrl: string;

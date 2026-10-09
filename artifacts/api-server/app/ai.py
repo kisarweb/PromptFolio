@@ -32,7 +32,7 @@ class EngineError(Exception):
 _builtin_openai = AsyncOpenAI(api_key=config.OPENAI_API_KEY or "missing", base_url=config.OPENAI_BASE_URL or None)
 _builtin_gemini = genai.Client(
     api_key=config.GEMINI_API_KEY or "missing",
-    http_options=gtypes.HttpOptions(api_version="", base_url=config.GEMINI_BASE_URL or None),
+    http_options=gtypes.HttpOptions(api_version="", base_url=config.GEMINI_BASE_URL) if config.GEMINI_BASE_URL else None,
 )
 
 BUILTIN_TEXT = "builtin"
@@ -67,11 +67,11 @@ class Engine:
 
 
 def builtin_available() -> bool:
-    return bool(config.OPENAI_BASE_URL and config.OPENAI_API_KEY)
+    return bool(config.OPENAI_API_KEY)
 
 
 def builtin_gemini_available() -> bool:
-    return bool(config.GEMINI_BASE_URL and config.GEMINI_API_KEY)
+    return bool(config.GEMINI_API_KEY)
 
 
 # ------------------------------------------------------------------ capability matrix

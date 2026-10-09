@@ -91,7 +91,10 @@
     "privacy": "PromptFolio only requests access to the files it creates (drive.file scope).",
     "feature1": "Guided builders",
     "feature2": "Versioned catalog",
-    "feature3": "Four delivery modalities"
+    "feature3": "Four delivery modalities",
+    "authErrorTitle": "Google sign-in failed",
+    "authError": "Sign-in was interrupted (code: {{code}}). Please try again.",
+    "googleMissing": "Google sign-in has not been configured on this server yet. Contact the administrator."
   },
   "home": {
     "eyebrow": "Overview",

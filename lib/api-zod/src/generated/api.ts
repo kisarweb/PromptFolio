@@ -21,6 +21,7 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetSessionResponse = zod.object({
   "authenticated": zod.boolean(),
+  "demoLoginEnabled": zod.boolean().describe('Whether the shared "Local Demo Login" account is available (off in production)'),
   "user": zod.union([zod.object({
   "id": zod.string(),
   "email": zod.string(),
@@ -33,7 +34,7 @@ export const GetSessionResponse = zod.object({
   "googleDriveLinked": zod.boolean().describe('True when a real Google OAuth token with drive.file scope is stored'),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
-  "googleOAuthConfigured": zod.boolean().describe('When false the UI must offer the "Local Demo Login" button'),
+  "googleOAuthConfigured": zod.boolean().describe('Whether real Google sign-in (and Drive) is configured on the server'),
   "googleLoginUrl": zod.string().describe('Full-page navigation target to start Google OAuth (e.g. /api/auth/google/login)')
 })
 
@@ -43,6 +44,7 @@ export const GetSessionResponse = zod.object({
  */
 export const DemoLoginResponse = zod.object({
   "authenticated": zod.boolean(),
+  "demoLoginEnabled": zod.boolean().describe('Whether the shared "Local Demo Login" account is available (off in production)'),
   "user": zod.union([zod.object({
   "id": zod.string(),
   "email": zod.string(),
@@ -55,7 +57,7 @@ export const DemoLoginResponse = zod.object({
   "googleDriveLinked": zod.boolean().describe('True when a real Google OAuth token with drive.file scope is stored'),
   "createdAt": zod.coerce.date()
 }),zod.null()]).optional(),
-  "googleOAuthConfigured": zod.boolean().describe('When false the UI must offer the "Local Demo Login" button'),
+  "googleOAuthConfigured": zod.boolean().describe('Whether real Google sign-in (and Drive) is configured on the server'),
   "googleLoginUrl": zod.string().describe('Full-page navigation target to start Google OAuth (e.g. /api/auth/google/login)')
 })
 
