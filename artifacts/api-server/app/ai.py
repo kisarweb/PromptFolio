@@ -23,10 +23,72 @@ log = logging.getLogger("promptfolio.ai")
 
 
 class EngineError(Exception):
-    def __init__(self, message: str, status: int = 502):
+    def __init__(self, message: str, status: int = 502, code: str | None = None, params: dict[str, str] | None = None):
         super().__init__(message)
         self.message = message
         self.status = status
+        self.code = code
+        self.params = params or {}
+
+    def localized(self, language: str | None) -> str:
+        """User-facing message in the user's language for known provider failures; raw message otherwise."""
+        texts = PROVIDER_ERROR_TEXTS.get(self.code or "")
+        if not texts:
+            return self.message
+        return texts["pt" if (language or "").lower().startswith("pt") else "en"].format(**self.params)
+
+
+PROVIDER_ERROR_TEXTS: dict[str, dict[str, str]] = {
+    "free_tier_unavailable": {
+        "pt": "Sua chave do {provider} está no plano gratuito, e o plano gratuito não permite usar o modelo {model}. "
+              "Ative o faturamento (billing) no projeto dessa chave em aistudio.google.com/apikey ou use uma chave de outro provedor em Configurações > Conectores de IA.",
+        "en": "Your {provider} key is on the free tier, which does not include the {model} model. "
+              "Enable billing for that key's project at aistudio.google.com/apikey, or use another provider's key in Settings > AI connectors.",
+    },
+    "no_credits": {
+        "pt": "Sua conta do {provider} está sem créditos ou saldo. Adicione créditos na conta do provedor e tente de novo.",
+        "en": "Your {provider} account has no credits left. Add credits on the provider's account and try again.",
+    },
+    "rate_limited": {
+        "pt": "Você atingiu o limite de uso da sua chave do {provider}. Aguarde um pouco e tente de novo, ou confira o plano da sua conta.",
+        "en": "You reached your {provider} key's usage limit. Wait a little and try again, or check your account plan.",
+    },
+    "invalid_key": {
+        "pt": "O {provider} recusou sua chave (inválida, revogada ou sem permissão para este modelo). Confira a chave em Configurações > Conectores de IA.",
+        "en": "{provider} rejected your key (invalid, revoked or not allowed to use this model). Check it in Settings > AI connectors.",
+    },
+    "model_unavailable": {
+        "pt": "O modelo {model} não está disponível para sua chave do {provider}. Deixe o campo Modelo em branco em Configurações > Conectores de IA para o app escolher automaticamente.",
+        "en": "The {model} model is not available for your {provider} key. Leave the Model field blank in Settings > AI connectors so the app picks one automatically.",
+    },
+}
+
+
+def _provider_error(engine: "Engine", exc: Exception, model: str = "") -> EngineError:
+    """Turn a raw SDK/HTTP failure into an EngineError with a stable code the UI can explain."""
+    status = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    if not isinstance(status, int):
+        resp = getattr(exc, "response", None)
+        status = getattr(resp, "status_code", None)
+    raw = str(exc)
+    low = raw.lower()
+    provider = engine.label.split(" (")[0] if engine.label else "AI"
+    params = {"provider": provider, "model": model or "?"}
+    code: str | None = None
+    if status == 429 or "resource_exhausted" in low:
+        if "free_tier" in low and "limit: 0" in low:
+            code = "free_tier_unavailable"
+        elif "insufficient_quota" in low or "credit balance" in low or "out of credits" in low:
+            code = "no_credits"
+        else:
+            code = "rate_limited"
+    elif status in (401, 403) or "api key not valid" in low or "invalid_api_key" in low or "permission_denied" in low:
+        code = "invalid_key"
+    elif status == 404 or "not_found" in low and "model" in low:
+        code = "model_unavailable"
+    if code:
+        return EngineError(f"{engine.label}: {raw[:500]}", 400 if code != "rate_limited" else 429, code, params)
+    return EngineError(f"{engine.label}: {raw[:500]}")
 
 
 _builtin_openai = AsyncOpenAI(api_key=config.OPENAI_API_KEY or "missing", base_url=config.OPENAI_BASE_URL or None)
@@ -209,7 +271,7 @@ async def chat_complete(engine: Engine, system: str, messages: list[dict[str, st
         raise
     except Exception as exc:  # surface provider errors explicitly
         log.exception("chat completion failed")
-        raise EngineError(f"{engine.label}: {exc}") from exc
+        raise _provider_error(engine, exc, model_for(engine, "text")) from exc
     raise EngineError(f"{engine.label} cannot generate text.", 400)
 
 
@@ -346,7 +408,7 @@ async def generate_image(engine: Engine, prompt: str, aspect: str, images: RefIm
         raise
     except Exception as exc:
         log.exception("image generation failed")
-        raise EngineError(f"{engine.label}: {exc}") from exc
+        raise _provider_error(engine, exc, model_for(engine, "image")) from exc
     raise EngineError(f"{engine.label} cannot generate images.", 400)
 
 
@@ -413,7 +475,7 @@ async def generate_audio(engine: Engine, prompt: str, voice: str) -> tuple[bytes
         raise
     except Exception as exc:
         log.exception("audio generation failed")
-        raise EngineError(f"{engine.label}: {exc}") from exc
+        raise _provider_error(engine, exc, model_for(engine, "audio")) from exc
     raise EngineError(f"{engine.label} cannot generate audio.", 400)
 
 
@@ -472,7 +534,7 @@ async def generate_video(engine: Engine, prompt: str, aspect: str, duration: int
         raise
     except Exception as exc:
         log.exception("video generation failed")
-        raise EngineError(f"{engine.label}: {exc}") from exc
+        raise _provider_error(engine, exc, model_for(engine, "video")) from exc
     raise EngineError(f"{engine.label} cannot generate video.", 400)
 
 

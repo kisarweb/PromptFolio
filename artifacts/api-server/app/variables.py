@@ -42,7 +42,7 @@ async def suggest_docs(engine: "ai.Engine", template: str, language: str, existi
             if isinstance(item, dict) and item.get("name") in names:
                 suggested[item["name"]] = item
     except ai.EngineError as exc:
-        raise HTTPException(status_code=502, detail=f"AI engine error: {exc.message}")
+        raise HTTPException(status_code=exc.status if exc.code else 502, detail=exc.localized(language) if exc.code else f"AI engine error: {exc.message}")
     except Exception as exc:
         log.exception("variable documentation suggestion failed")
         raise HTTPException(status_code=502, detail=f"Could not generate field documentation right now: {str(exc)[:200]}")

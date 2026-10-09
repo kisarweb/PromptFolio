@@ -330,7 +330,7 @@
     "driveBody": "Padrão automático a partir do login Google.",
     "driveLinked": "Conectado via Login Google ({{email}})",
     "driveDemo": "Conta demo: salvamento no Drive é simulado",
-    "driveNot": "Não vinculado. Entre com Google para conectar.",
+    "driveNot": "Google Drive não conectado. Clique em Conectar Google Drive e, na tela do Google, marque a permissão do Google Drive.",
     "rootFolder": "Pasta raiz",
     "openFolder": "Abrir pasta",
     "customMcp": "Endpoint MCP personalizado do Google Drive",
@@ -355,7 +355,8 @@
     "keysMissing": "Você ainda não cadastrou uma chave de IA. Conecte a OpenAI ou o Google Gemini abaixo para usar o chat do Builder e gerar conteúdo.",
     "keysMissingDev": "Neste ambiente de desenvolvimento há um motor de IA embutido de reserva. Em produção, cada usuário precisa cadastrar a própria chave da OpenAI ou do Gemini, então conecte a sua abaixo.",
     "modelAuto": "Automático",
-    "modelHint": "Deixe em branco para o app escolher o modelo certo para cada tipo (texto, imagem, voz, vídeo). Um modelo informado aqui só é usado no tipo a que ele pertence."
+    "modelHint": "Deixe em branco para o app escolher o modelo certo para cada tipo (texto, imagem, voz, vídeo). Um modelo informado aqui só é usado no tipo a que ele pertence.",
+    "driveConnect": "Conectar Google Drive"
   },
   "tutorials": {
     "title": "Tutoriais",
@@ -549,5 +550,9 @@
     "examplesPlaceholder": "Exemplo 1\nExemplo 2",
     "options": "Valores aceitos (um por linha, opcional)",
     "optionsPlaceholder": "Vazio = texto livre"
+  },
+  "drive": {
+    "scopeMissingTitle": "Falta a permissão do Google Drive",
+    "scopeMissing": "Você entrou, mas não marcou a permissão do Google Drive na tela do Google, então o app não consegue criar a pasta /PromptFolio nem salvar suas gerações. Clique em Conectar Google Drive e marque a caixa do Drive."
   }
 }

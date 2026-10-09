@@ -330,7 +330,7 @@
     "driveBody": "Automatic default from Google login.",
     "driveLinked": "Connected via Google Login ({{email}})",
     "driveDemo": "Demo account: Drive saving is simulated",
-    "driveNot": "Not linked. Sign in with Google to connect.",
+    "driveNot": "Google Drive not connected. Click Connect Google Drive and, on Google's screen, tick the Google Drive permission.",
     "rootFolder": "Root folder",
     "openFolder": "Open folder",
     "customMcp": "Custom Google Drive MCP endpoint",
@@ -355,7 +355,8 @@
     "keysMissing": "You have not added an AI key yet. Connect OpenAI or Google Gemini below to use the Builder chat and generate content.",
     "keysMissingDev": "This development environment has a built-in fallback AI engine. In production every user must add their own OpenAI or Gemini key, so connect yours below.",
     "modelAuto": "Automatic",
-    "modelHint": "Leave blank to let the app pick the right model for each type (text, image, voice, video). A model set here is only used for the type it belongs to."
+    "modelHint": "Leave blank to let the app pick the right model for each type (text, image, voice, video). A model set here is only used for the type it belongs to.",
+    "driveConnect": "Connect Google Drive"
   },
   "tutorials": {
     "title": "Tutorials",
@@ -549,5 +550,9 @@
     "examplesPlaceholder": "Example 1\nExample 2",
     "options": "Allowed values (one per line, optional)",
     "optionsPlaceholder": "Empty = free text"
+  },
+  "drive": {
+    "scopeMissingTitle": "Google Drive permission missing",
+    "scopeMissing": "You signed in but did not tick the Google Drive permission on Google's screen, so the app cannot create the /PromptFolio folder or save your generations. Click Connect Google Drive and tick the Drive box."
   }
 }

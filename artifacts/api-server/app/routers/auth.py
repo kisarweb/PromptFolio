@@ -31,6 +31,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 GOOGLE_LOGIN_PATH = "/api/auth/google/login"
 DEMO_EMAIL = "demo@promptfolio.local"
+DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
 
 
 def _session_payload(user: User | None) -> dict:
@@ -138,18 +139,27 @@ async def google_callback(request: Request, code: str | None = None, state: str 
     user.name = info.get("name") or user.name
     user.avatar_url = info.get("picture")
     user.is_demo = False
-    user.encrypted_google_access_token = encrypt_str(tokens["access_token"])
-    if tokens.get("refresh_token"):
-        user.encrypted_google_refresh_token = encrypt_str(tokens["refresh_token"])
-    user.google_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(tokens.get("expires_in", 3600)))
+    # Google's consent screen lets people untick the Drive permission; only keep tokens that can actually reach Drive.
+    drive_granted = DRIVE_SCOPE in (tokens.get("scope") or "").split()
+    if drive_granted:
+        user.encrypted_google_access_token = encrypt_str(tokens["access_token"])
+        if tokens.get("refresh_token"):
+            user.encrypted_google_refresh_token = encrypt_str(tokens["refresh_token"])
+        user.google_token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=int(tokens.get("expires_in", 3600)))
+    else:
+        log.warning("google login without Drive permission for user %s", user.id)
+        user.encrypted_google_access_token = None
+        user.encrypted_google_refresh_token = None
+        user.google_token_expires_at = None
     await db.commit()
     await provision_user(db, user)
-    try:
-        await ensure_drive_structure(db, user)
-    except Exception:
-        log.exception("could not create /PromptFolio folder structure on Drive")
+    if drive_granted:
+        try:
+            await ensure_drive_structure(db, user)
+        except Exception:
+            log.exception("could not create /PromptFolio folder structure on Drive")
 
-    resp = RedirectResponse("/", status_code=302)
+    resp = RedirectResponse("/" if drive_granted else "/settings?tab=storage&drive_error=scope_missing", status_code=302)
     resp.delete_cookie("pf_oauth_state", path="/")
     set_session_cookie(resp, user.id)
     return resp

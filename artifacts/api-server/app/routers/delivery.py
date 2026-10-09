@@ -91,7 +91,7 @@ async def execute(body: ExecuteInput, user: User = Depends(current_user), db: As
         else:
             data, mime = await ai.generate_video(engine, final_prompt, aspect, duration, images)
     except ai.EngineError as exc:
-        raise HTTPException(status_code=exc.status, detail=exc.message)
+        raise HTTPException(status_code=exc.status, detail=exc.localized(user.language))
 
     category = await db.get(Category, prompt.category_id) if prompt.category_id else None
     category_name = category.name if category else "Geral"

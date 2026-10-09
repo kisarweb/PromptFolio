@@ -6,7 +6,7 @@ import { CheckCircle2, XCircle, FolderOpen, Folder, ExternalLink, BookOpen, Zap,
 import { SiGoogledrive, SiCloudflare } from 'react-icons/si';
 import { Database as SiAmazons3 } from 'lucide-react';
 import {
-  useGetStorageOverview, useSetActiveStorage, useSaveStorageConfig, useTestStorageConnection, getGetStorageOverviewQueryKey,
+  useGetSession, useGetStorageOverview, useSetActiveStorage, useSaveStorageConfig, useTestStorageConnection, getGetStorageOverviewQueryKey,
   getGetSessionQueryKey, getGetDashboardSummaryQueryKey, type StorageProvider, type TestResult, type S3CompatibleStorage, type StorageConfigInput,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
@@ -43,6 +43,7 @@ export function StorageTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const ov = useGetStorageOverview();
+  const session = useGetSession();
   const setActive = useSetActiveStorage();
   const saveCfg = useSaveStorageConfig();
   const test = useTestStorageConnection();
@@ -136,7 +137,12 @@ export function StorageTab() {
         <Option idx={0} provider="google_drive_mcp" title={t('settings.driveOption')} body={t('settings.driveBody')} icon={<SiGoogledrive className="h-5 w-5" />} configured={g.isConfigured} tutorial="/tutorials/google-drive">
           <div className={cn('mb-4 flex items-center gap-2 rounded-lg border p-2.5 text-sm', g.isDemoSimulated ? 'border-warning/30 bg-warning/10 text-warning' : g.linkedViaLogin ? 'border-success/30 bg-success/10 text-success' : 'text-muted-foreground')} data-testid="text-drive-status">
             {g.linkedViaLogin && !g.isDemoSimulated ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-            {g.isDemoSimulated ? t('settings.driveDemo') : g.linkedViaLogin ? t('settings.driveLinked', { email: g.accountEmail ?? '' }) : t('settings.driveNot')}
+            <span className="flex-1">{g.isDemoSimulated ? t('settings.driveDemo') : g.linkedViaLogin ? t('settings.driveLinked', { email: g.accountEmail ?? '' }) : t('settings.driveNot')}</span>
+            {!g.linkedViaLogin && !g.isDemoSimulated && session.data?.googleOAuthConfigured && (
+              <Button size="sm" onClick={() => { window.location.href = session.data!.googleLoginUrl; }} data-testid="button-connect-drive">
+                <SiGoogledrive className="mr-1.5 h-3.5 w-3.5" />{t('settings.driveConnect')}
+              </Button>
+            )}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border bg-muted/30 p-3 font-mono text-[12px]">

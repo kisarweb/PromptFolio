@@ -122,7 +122,7 @@ async def send_message(id: str, body: ChatMessageInput, user: User = Depends(cur
         reply = await ai.chat_complete(engine, agent.system_prompt + language_directive(user.language), convo, agent.temperature)
     except ai.EngineError as exc:
         await db.rollback()  # discards the user message and the lock set in this request
-        raise HTTPException(status_code=502, detail=f"AI engine error: {exc.message}")
+        raise HTTPException(status_code=exc.status if exc.code else 502, detail=exc.localized(user.language) if exc.code else f"AI engine error: {exc.message}")
 
     assistant_msg = ChatMessage(session_id=s.id, role="assistant", content=reply)
     db.add(assistant_msg)

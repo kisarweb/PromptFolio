@@ -1,2 +1,3 @@
 - [Backend runtime quirks](backend-runtime.md) — FastAPI replaces Express; SQLAlchemy async needs greenlet; verified built-in AI models via proxy.
 - [GitHub access](github-access.md) — the Replit GitHub connection can't push; use the GITHUB_TOKEN secret; repo kisarweb/PromptFolio
+- [Production infra](deploy-infra.md) — Neon DB shared by dev+prod, Railway service IDs/URL, secret-passing rules, AI is per-user BYOK.

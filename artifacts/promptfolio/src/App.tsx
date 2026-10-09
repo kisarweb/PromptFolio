@@ -1,7 +1,9 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
+import { useTranslation } from 'react-i18next';
 import { useGetSession, useHealthCheck } from '@workspace/api-client-react';
+import { useToast } from '@/hooks/use-toast';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -61,6 +63,21 @@ function Splash() {
   );
 }
 
+// The Google callback lands on /settings?tab=storage&drive_error=scope_missing when the Drive box was left unticked.
+function DriveScopeNotice() {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('drive_error') !== 'scope_missing') return;
+    toast({ variant: 'destructive', title: t('drive.scopeMissingTitle'), description: t('drive.scopeMissing') });
+    params.delete('drive_error');
+    const qs = params.toString();
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+  }, [t, toast]);
+  return null;
+}
+
 function Gate() {
   const session = useGetSession();
   useHealthCheck({ query: { queryKey: ['/api/healthz'], staleTime: 60_000 } });
@@ -79,7 +96,7 @@ function Gate() {
 
   if (session.isLoading) return <Splash />;
   if (!session.data?.authenticated || !user) return <Login session={session.data} />;
-  return <AppShell user={user}><Routes /></AppShell>;
+  return <AppShell user={user}><DriveScopeNotice /><Routes /></AppShell>;
 }
 
 function App() {
