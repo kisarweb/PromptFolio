@@ -8,6 +8,7 @@
 import type { McpConnectionInputHeaders } from './mcpConnectionInputHeaders';
 import type { McpConnectionType } from './mcpConnectionType';
 import type { McpProviderType } from './mcpProviderType';
+import type { ModelsByModality } from './modelsByModality';
 
 export interface McpConnectionInput {
   providerType: McpProviderType;
@@ -21,5 +22,6 @@ export interface McpConnectionInput {
   headers?: McpConnectionInputHeaders;
   /** @nullable */
   defaultModel?: string | null;
+  models?: ModelsByModality;
   isActive?: boolean;
 }

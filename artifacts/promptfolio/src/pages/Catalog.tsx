@@ -24,6 +24,7 @@ import { Markdown } from '@/components/pf/Markdown';
 import { useToast } from '@/hooks/use-toast';
 import { MODALITIES, MODALITY_ICON, MODALITY_HUE, apiErrorMessage, detectVariables, downloadText } from '@/lib/pf';
 import { cn } from '@/lib/utils';
+import { servesModality } from '@/lib/engines';
 import { VariableEditor, cleanVariables } from '@/components/builder/VariableEditor';
 
 const ALL = '__all__';
@@ -285,7 +286,10 @@ function PromptDrawer({ id, onClose }: { id: string | null; onClose: () => void 
               </div>
               <div>
                 <Label>{t('builder.modality')}</Label>
-                <Select value={form.targetModality} onValueChange={(v) => setForm({ ...form, targetModality: v as Modality })}>
+                <Select value={form.targetModality} onValueChange={(v) => {
+                  const preferred = mcps.data?.find((m) => m.id === form.preferredMcpId);
+                  setForm({ ...form, targetModality: v as Modality, preferredMcpId: preferred && servesModality(preferred.providerType, v as Modality) ? form.preferredMcpId : null });
+                }}>
                   <SelectTrigger className="mt-1.5" data-testid="select-edit-modality"><SelectValue /></SelectTrigger>
                   <SelectContent>{MODALITIES.map((m) => <SelectItem key={m} value={m}>{t(`modality.${m}`)}</SelectItem>)}</SelectContent>
                 </Select>
@@ -295,7 +299,7 @@ function PromptDrawer({ id, onClose }: { id: string | null; onClose: () => void 
                 <Label>{t('catalog.mcp')}</Label>
                 <Select value={form.preferredMcpId ?? ALL} onValueChange={(v) => setForm({ ...form, preferredMcpId: v === ALL ? null : v })}>
                   <SelectTrigger className="mt-1.5" data-testid="select-edit-mcp"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value={ALL}>{t('common.auto')}</SelectItem>{mcps.data?.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent>
+                  <SelectContent><SelectItem value={ALL}>{t('common.auto')}</SelectItem>{mcps.data?.filter((m) => servesModality(m.providerType, form.targetModality) || m.id === form.preferredMcpId).map((m) => <SelectItem key={m.id} value={m.id}>{m.name}{m.defaultModel ? ` · ${m.defaultModel}` : ''}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>

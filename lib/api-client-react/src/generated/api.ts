@@ -44,6 +44,7 @@ import type {
   ListAgentsParams,
   ListAssetsParams,
   ListBuilderSessionsParams,
+  ListOpenRouterModelsParams,
   ListPromptsParams,
   ListReferencesParams,
   McpConnection,
@@ -51,6 +52,7 @@ import type {
   McpConnectionUpdate,
   ModalityCapability,
   OkResponse,
+  OpenRouterModel,
   PreferencesUpdate,
   Prompt,
   PromptFacets,
@@ -3701,6 +3703,84 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getTestMcpConnectionMutationOptions(options));
     }
+
+export const getListOpenRouterModelsUrl = (params: ListOpenRouterModelsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/settings/openrouter/models?${stringifiedParams}` : `/api/settings/openrouter/models`
+}
+
+export const listOpenRouterModels = async (params: ListOpenRouterModelsParams, options?: Parameters<typeof customFetch>[1]): Promise<OpenRouterModel[]> => {
+
+  return customFetch<OpenRouterModel[]>(getListOpenRouterModelsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOpenRouterModelsQueryKey = (params?: ListOpenRouterModelsParams,) => {
+    return [
+    `/api/settings/openrouter/models`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListOpenRouterModelsQueryOptions = <TData = Awaited<ReturnType<typeof listOpenRouterModels>>, TError = ErrorType<unknown>>(params: ListOpenRouterModelsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenRouterModels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOpenRouterModelsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOpenRouterModels>>> = ({ signal }) => listOpenRouterModels(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOpenRouterModels>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOpenRouterModelsQueryResult = NonNullable<Awaited<ReturnType<typeof listOpenRouterModels>>>
+export type ListOpenRouterModelsQueryError = ErrorType<unknown>
+
+
+
+export function useListOpenRouterModels<TData = Awaited<ReturnType<typeof listOpenRouterModels>>, TError = ErrorType<unknown>>(
+ params: ListOpenRouterModelsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOpenRouterModels>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOpenRouterModelsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetStorageOverviewUrl = () => {
 

@@ -229,7 +229,10 @@
     "exportMd": ".md",
     "exportTxt": ".txt",
     "finalPrompt": "Final prompt",
-    "preview": "Preview"
+    "preview": "Preview",
+    "engineHint": "Only models that can generate {{kind}} are listed. You choose which one to use.",
+    "noEngine": "No model available for {{kind}}. Add a connector in Settings > AI connectors.",
+    "pickEngine": "Choose the model"
   },
   "catalog": {
     "title": "PromptFolio Catalog",
@@ -292,7 +295,7 @@
     "scope": "Scope",
     "addCategory": "Add category",
     "mcpTitle": "AI connectors",
-    "mcpBody": "Every user brings their own AI keys. Add your OpenAI and/or Google Gemini key: they power the Builder chat, field documentation and text, image and voice generation. For video, use Runway or Google (Veo). Keys are encrypted and never shown again.",
+    "mcpBody": "Each user brings their own AI keys. Add OpenAI, Google Gemini or the OpenRouter connectors: they power the Builder chat, field docs and text, image, voice and video generation. Keys are encrypted and never shown again.",
     "connect": "Connect",
     "connected": "Connected",
     "apiKey": "API key",
@@ -315,6 +318,22 @@
       "runway": {
         "name": "Runway",
         "body": "Image and video generation"
+      },
+      "openrouter_text": {
+        "name": "OpenRouter · Text",
+        "body": "OpenRouter text models (GPT, Claude, Llama, DeepSeek...)"
+      },
+      "openrouter_image": {
+        "name": "OpenRouter · Image",
+        "body": "OpenRouter image models (Flux, Seedream, GPT Image...)"
+      },
+      "openrouter_audio": {
+        "name": "OpenRouter · Audio",
+        "body": "OpenRouter voice models (ElevenLabs, Gemini TTS...)"
+      },
+      "openrouter_video": {
+        "name": "OpenRouter · Video",
+        "body": "OpenRouter video models (Veo, Kling, Seedance...)"
       },
       "custom_mcp": {
         "name": "Custom MCP server",
@@ -352,11 +371,26 @@
     "notConfigured": "Not configured",
     "activated": "Active storage updated",
     "keysOk": "Your AI key is active: the Builder chat, field documentation and generations run on your account.",
-    "keysMissing": "You have not added an AI key yet. Connect OpenAI or Google Gemini below to use the Builder chat and generate content.",
-    "keysMissingDev": "This development environment has a built-in fallback AI engine. In production every user must add their own OpenAI or Gemini key, so connect yours below.",
+    "keysMissing": "You have not added a text AI key yet. Connect OpenAI, Google Gemini or OpenRouter · Text below to use the Builder chat and generate content.",
+    "keysMissingDev": "This development environment has a built-in fallback AI engine. In production every user must add their own key (OpenAI, Gemini or OpenRouter), so connect yours below.",
     "modelAuto": "Automatic",
     "modelHint": "Leave blank to let the app pick the right model for each type (text, image, voice, video). A model set here is only used for the type it belongs to.",
-    "driveConnect": "Connect Google Drive"
+    "driveConnect": "Connect Google Drive",
+    "modelFor": "Model for {{kind}}",
+    "modelDefault": "Default: {{model}}",
+    "modelsHint": "Leave blank to use the default model. Each field only accepts models of that type.",
+    "orModel": "{{kind}} model",
+    "orModelPlaceholder": "Type or pick, e.g. {{example}}",
+    "orModelHint": "Required. Only OpenRouter {{kind}} models are listed (see openrouter.ai/models).",
+    "orModelsLoading": "Loading the model list…",
+    "orKeyShared": "Leave blank to reuse the OpenRouter key already saved",
+    "orKeyHint": "One key for every OpenRouter connector. Changing it here changes it everywhere.",
+    "kind": {
+      "text": "text",
+      "image": "image",
+      "audio": "voice",
+      "video": "video"
+    }
   },
   "tutorials": {
     "title": "Tutorials",

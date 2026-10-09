@@ -229,7 +229,10 @@
     "exportMd": ".md",
     "exportTxt": ".txt",
     "finalPrompt": "Prompt final",
-    "preview": "Prévia"
+    "preview": "Prévia",
+    "engineHint": "Só aparecem os modelos que podem gerar {{kind}}. Você escolhe qual usar.",
+    "noEngine": "Nenhum modelo disponível para {{kind}}. Cadastre um conector em Configurações > Conectores de IA.",
+    "pickEngine": "Escolha o modelo"
   },
   "catalog": {
     "title": "Catálogo da Coleção",
@@ -292,7 +295,7 @@
     "scope": "Escopo",
     "addCategory": "Adicionar categoria",
     "mcpTitle": "Conectores de IA",
-    "mcpBody": "Cada usuário usa as próprias chaves de IA. Cadastre sua chave da OpenAI e/ou do Google Gemini: elas são usadas no chat do Builder, na documentação dos campos e nas gerações de texto, imagem e voz. Para vídeo, use Runway ou Google (Veo). As chaves ficam criptografadas e nunca são exibidas de novo.",
+    "mcpBody": "Cada usuário usa as próprias chaves de IA. Cadastre OpenAI, Google Gemini ou os conectores OpenRouter: eles são usados no chat do Builder, na documentação dos campos e nas gerações de texto, imagem, voz e vídeo. As chaves ficam criptografadas e nunca são exibidas de novo.",
     "connect": "Conectar",
     "connected": "Conectado",
     "apiKey": "Chave de API",
@@ -315,6 +318,22 @@
       "runway": {
         "name": "Runway",
         "body": "Geração de imagem e vídeo"
+      },
+      "openrouter_text": {
+        "name": "OpenRouter · Texto",
+        "body": "Modelos de texto da OpenRouter (GPT, Claude, Llama, DeepSeek...)"
+      },
+      "openrouter_image": {
+        "name": "OpenRouter · Imagem",
+        "body": "Modelos de imagem da OpenRouter (Flux, Seedream, GPT Image...)"
+      },
+      "openrouter_audio": {
+        "name": "OpenRouter · Áudio",
+        "body": "Modelos de voz da OpenRouter (ElevenLabs, Gemini TTS...)"
+      },
+      "openrouter_video": {
+        "name": "OpenRouter · Vídeo",
+        "body": "Modelos de vídeo da OpenRouter (Veo, Kling, Seedance...)"
       },
       "custom_mcp": {
         "name": "Servidor MCP personalizado",
@@ -352,11 +371,26 @@
     "notConfigured": "Não configurado",
     "activated": "Armazenamento ativo atualizado",
     "keysOk": "Sua chave de IA está ativa: o chat do Builder, a documentação dos campos e as gerações usam a sua conta.",
-    "keysMissing": "Você ainda não cadastrou uma chave de IA. Conecte a OpenAI ou o Google Gemini abaixo para usar o chat do Builder e gerar conteúdo.",
-    "keysMissingDev": "Neste ambiente de desenvolvimento há um motor de IA embutido de reserva. Em produção, cada usuário precisa cadastrar a própria chave da OpenAI ou do Gemini, então conecte a sua abaixo.",
+    "keysMissing": "Você ainda não cadastrou uma chave de IA para texto. Conecte a OpenAI, o Google Gemini ou o OpenRouter · Texto abaixo para usar o chat do Builder e gerar conteúdo.",
+    "keysMissingDev": "Neste ambiente de desenvolvimento há um motor de IA embutido de reserva. Em produção, cada usuário precisa cadastrar a própria chave (OpenAI, Gemini ou OpenRouter), então conecte a sua abaixo.",
     "modelAuto": "Automático",
     "modelHint": "Deixe em branco para o app escolher o modelo certo para cada tipo (texto, imagem, voz, vídeo). Um modelo informado aqui só é usado no tipo a que ele pertence.",
-    "driveConnect": "Conectar Google Drive"
+    "driveConnect": "Conectar Google Drive",
+    "modelFor": "Modelo para {{kind}}",
+    "modelDefault": "Padrão: {{model}}",
+    "modelsHint": "Deixe em branco para usar o modelo padrão. Cada campo só aceita modelos daquele tipo.",
+    "orModel": "Modelo de {{kind}}",
+    "orModelPlaceholder": "Digite ou escolha, ex.: {{example}}",
+    "orModelHint": "Obrigatório. Só aparecem modelos de {{kind}} da OpenRouter (lista em openrouter.ai/models).",
+    "orModelsLoading": "Carregando a lista de modelos…",
+    "orKeyShared": "Deixe em branco para usar a mesma chave OpenRouter já salva",
+    "orKeyHint": "A mesma chave vale para todos os conectores OpenRouter. Trocar aqui troca em todos.",
+    "kind": {
+      "text": "texto",
+      "image": "imagem",
+      "audio": "voz",
+      "video": "vídeo"
+    }
   },
   "tutorials": {
     "title": "Tutoriais",

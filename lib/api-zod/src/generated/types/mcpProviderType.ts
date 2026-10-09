@@ -13,5 +13,9 @@ export const McpProviderType = {
   google_nano_banana: 'google_nano_banana',
   openai_chatgpt: 'openai_chatgpt',
   runway: 'runway',
+  openrouter_text: 'openrouter_text',
+  openrouter_image: 'openrouter_image',
+  openrouter_audio: 'openrouter_audio',
+  openrouter_video: 'openrouter_video',
   custom_mcp: 'custom_mcp',
 } as const;

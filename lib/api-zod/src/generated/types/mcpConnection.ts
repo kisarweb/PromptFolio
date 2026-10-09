@@ -7,6 +7,7 @@
  */
 import type { McpConnectionType } from './mcpConnectionType';
 import type { McpProviderType } from './mcpProviderType';
+import type { ModelsByModality } from './modelsByModality';
 
 export interface McpConnection {
   id: string;
@@ -17,6 +18,7 @@ export interface McpConnection {
   endpointUrl?: string | null;
   /** @nullable */
   defaultModel?: string | null;
+  models?: ModelsByModality;
   hasCredentials: boolean;
   /** @nullable */
   maskedKey?: string | null;

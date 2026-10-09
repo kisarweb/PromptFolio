@@ -56,6 +56,10 @@ export const McpProviderType = {
   google_nano_banana: 'google_nano_banana',
   openai_chatgpt: 'openai_chatgpt',
   runway: 'runway',
+  openrouter_text: 'openrouter_text',
+  openrouter_image: 'openrouter_image',
+  openrouter_audio: 'openrouter_audio',
+  openrouter_video: 'openrouter_video',
   custom_mcp: 'custom_mcp',
 } as const;
 
@@ -503,6 +507,21 @@ export interface EngineOption {
   available: boolean;
   /** @nullable */
   reason?: string | null;
+  /**
+     * Model this option uses for the modality
+     * @nullable
+     */
+  model?: string | null;
+  /**
+     * Voices the model accepts (null = the app's standard voices)
+     * @nullable
+     */
+  voices?: string[] | null;
+  /**
+     * Video durations in seconds the model accepts (null = 5 or 10)
+     * @nullable
+     */
+  durations?: number[] | null;
 }
 
 export interface ModalityCapability {
@@ -685,6 +704,20 @@ export interface GeneratedAsset {
   createdAt: string;
 }
 
+/**
+ * Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.
+ */
+export interface ModelsByModality {
+  /** @nullable */
+  text?: string | null;
+  /** @nullable */
+  image?: string | null;
+  /** @nullable */
+  audio?: string | null;
+  /** @nullable */
+  video?: string | null;
+}
+
 export interface McpConnection {
   id: string;
   providerType: McpProviderType;
@@ -694,6 +727,7 @@ export interface McpConnection {
   endpointUrl?: string | null;
   /** @nullable */
   defaultModel?: string | null;
+  models?: ModelsByModality;
   hasCredentials: boolean;
   /** @nullable */
   maskedKey?: string | null;
@@ -716,6 +750,7 @@ export interface McpConnectionInput {
   headers?: McpConnectionInputHeaders;
   /** @nullable */
   defaultModel?: string | null;
+  models?: ModelsByModality;
   isActive?: boolean;
 }
 
@@ -734,7 +769,13 @@ export interface McpConnectionUpdate {
   headers?: McpConnectionUpdateHeaders;
   /** @nullable */
   defaultModel?: string | null;
+  models?: ModelsByModality;
   isActive?: boolean;
+}
+
+export interface OpenRouterModel {
+  id: string;
+  name: string;
 }
 
 export interface TestResult {
@@ -863,4 +904,8 @@ export const ListReferencesSort = {
   size: 'size',
   code: 'code',
 } as const;
+
+export type ListOpenRouterModelsParams = {
+kind: Modality;
+};
 

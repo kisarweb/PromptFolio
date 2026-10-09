@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { McpConnectionUpdateHeaders } from './mcpConnectionUpdateHeaders';
+import type { ModelsByModality } from './modelsByModality';
 
 export interface McpConnectionUpdate {
   /** @minLength 1 */
@@ -20,5 +21,6 @@ export interface McpConnectionUpdate {
   headers?: McpConnectionUpdateHeaders;
   /** @nullable */
   defaultModel?: string | null;
+  models?: ModelsByModality;
   isActive?: boolean;
 }

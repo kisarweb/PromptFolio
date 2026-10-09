@@ -78,7 +78,7 @@ async def execute(body: ExecuteInput, user: User = Depends(current_user), db: As
 
     engine = await resolve_engine(db, user, body.modality, body.engineId, prompt.preferred_mcp_id)
     aspect = body.aspectRatio or ("16:9" if body.modality == "video" else "1:1")
-    duration = max(4, min(10, body.durationSeconds or 5))
+    duration = max(1, min(30, body.durationSeconds or 5))  # each engine snaps this to what its model accepts
     text_content: Optional[str] = None
     try:
         if body.modality == "text":

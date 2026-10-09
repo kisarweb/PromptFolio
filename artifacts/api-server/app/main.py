@@ -21,6 +21,7 @@ log = logging.getLogger("promptfolio")
 # create_all() never alters existing tables, so additive column changes go here (idempotent).
 SCHEMA_PATCHES = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS reference_autoclean_days INTEGER",
+    "ALTER TABLE mcp_connections ADD COLUMN IF NOT EXISTS models JSONB",
 ]
 AUTO_CLEANUP_INTERVAL_S = 6 * 3600
 

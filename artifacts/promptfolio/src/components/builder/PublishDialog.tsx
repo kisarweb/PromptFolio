@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToastAction } from '@/components/ui/toast';
 import { useToast } from '@/hooks/use-toast';
+import { servesModality } from '@/lib/engines';
 import { MODALITIES, MODALITY_ICON, apiErrorMessage, detectVariables } from '@/lib/pf';
 import { cn } from '@/lib/utils';
 import { VariableEditor, cleanVariables } from '@/components/builder/VariableEditor';
@@ -66,10 +67,15 @@ export function PublishDialog({ open, onOpenChange, sessionId, workspace }: { op
       const v: Record<string, PromptVariable> = {};
       d.variables.forEach((x) => (v[x.name] = x));
       setVars(v);
-      const suggested = mcps.data?.find((m) => m.providerType === d.suggestedMcpProvider && m.isActive);
+      const suggested = mcps.data?.find((m) => m.providerType === d.suggestedMcpProvider && m.isActive && servesModality(m.providerType, isAgent ? 'text' : d.targetModality));
       setMcpId(suggested?.id ?? NONE);
     }
   }, [draft.data, draft.isFetching, open, sessionId, mcps.data]);
+
+  useEffect(() => {
+    const chosen = mcps.data?.find((m) => m.id === mcpId);
+    if (chosen && !servesModality(chosen.providerType, isAgent ? 'text' : modality)) setMcpId(NONE);
+  }, [modality, mcpId, mcps.data, isAgent]);
 
   const detected = useMemo(() => detectVariables(content), [content]);
   const variables: PromptVariable[] = detected.map((n) => ({ ...vars[n], name: n, label: vars[n]?.label ?? n, defaultValue: vars[n]?.defaultValue ?? '', description: vars[n]?.description ?? null }));
@@ -194,7 +200,8 @@ export function PublishDialog({ open, onOpenChange, sessionId, workspace }: { op
                   <SelectTrigger className="mt-1.5" data-testid="select-publish-mcp"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NONE}>{t('common.auto')}</SelectItem>
-                    {mcps.data?.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                    {/* Agents use their connection for the Builder chat (text); prompts use it for their own output type. */}
+                    {mcps.data?.filter((m) => servesModality(m.providerType, isAgent ? 'text' : modality)).map((m) => <SelectItem key={m.id} value={m.id}>{m.name}{m.defaultModel ? ` · ${m.defaultModel}` : ''}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 {draft.data?.suggestedMcpProvider && <p className="mt-1 text-[11px] text-muted-foreground">{t('builder.suggested', { provider: t(`settings.mcpProviders.${draft.data.suggestedMcpProvider}.name`) })}</p>}

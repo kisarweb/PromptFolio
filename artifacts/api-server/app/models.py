@@ -68,6 +68,8 @@ class McpConnection(Base):
     masked_key: Mapped[Optional[str]] = mapped_column(String(64))
     header_names: Mapped[list[str]] = mapped_column(JSONB, default=list)
     default_model: Mapped[Optional[str]] = mapped_column(String(128))
+    # Per-modality model for providers that serve several ({"image": "...", "video": "..."}). Added via ALTER.
+    models: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

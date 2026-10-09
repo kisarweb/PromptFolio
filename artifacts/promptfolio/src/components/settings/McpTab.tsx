@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Pencil, Zap, Bot, KeyRound, Sparkles, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Pencil, Zap, Bot, KeyRound, Sparkles, CheckCircle2, XCircle, AlertTriangle, MessageSquareText, ImageIcon, AudioLines, Clapperboard } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
 import {
   useGetSession, useListMcpConnections, useCreateMcpConnection, useUpdateMcpConnection, useDeleteMcpConnection, useTestMcpConnection,
-  getListMcpConnectionsQueryKey, getGetDeliveryCapabilitiesQueryKey, getGetDashboardSummaryQueryKey,
-  type McpProviderType, type McpConnection, type TestResult,
+  useListOpenRouterModels, getListOpenRouterModelsQueryKey, getListMcpConnectionsQueryKey, getGetDeliveryCapabilitiesQueryKey, getGetDashboardSummaryQueryKey,
+  type McpProviderType, type McpConnection, type TestResult, type Modality, type ModelsByModality,
 } from '@workspace/api-client-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,17 +18,40 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorMessage } from '@/lib/pf';
 import { cn } from '@/lib/utils';
+import { OPENROUTER_KIND, PROVIDER_DEFAULT_MODELS, PROVIDER_MODALITIES, isOpenRouter } from '@/lib/engines';
 
-// The model field is optional: blank lets the server pick the right model per modality (text, image, voice, video).
+// Multi-purpose providers get one optional model per type they can generate; OpenRouter connectors serve exactly one
+// type each and require a model from that type's catalog. All OpenRouter connectors share one API key.
 const PROVIDERS: { type: McpProviderType; icon: React.ComponentType<{ className?: string }> }[] = [
   { type: 'openai_chatgpt', icon: Bot },
   { type: 'google_nano_banana', icon: SiGoogle },
   { type: 'runway', icon: Zap },
+  { type: 'openrouter_text', icon: MessageSquareText },
+  { type: 'openrouter_image', icon: ImageIcon },
+  { type: 'openrouter_audio', icon: AudioLines },
+  { type: 'openrouter_video', icon: Clapperboard },
   { type: 'custom_mcp', icon: Sparkles },
 ];
-const TEXT_PROVIDERS: McpProviderType[] = ['openai_chatgpt', 'google_nano_banana'];
+const TEXT_PROVIDERS: McpProviderType[] = ['openai_chatgpt', 'google_nano_banana', 'openrouter_text'];
+const OR_EXAMPLES: Record<Modality, string> = {
+  text: 'openai/gpt-5-mini', image: 'google/gemini-2.5-flash-image', audio: 'elevenlabs/eleven-v3', video: 'google/veo-3.1-fast',
+};
 
-type Form = { id?: string; providerType: McpProviderType; name: string; apiKey: string; endpointUrl: string; headers: string; defaultModel: string; isActive: boolean };
+type Form = { id?: string; providerType: McpProviderType; name: string; apiKey: string; endpointUrl: string; headers: string; defaultModel: string; models: Partial<Record<Modality, string>>; isActive: boolean };
+
+function OpenRouterModelField({ kind, value, onChange }: { kind: Modality; value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
+  const list = useListOpenRouterModels({ kind }, { query: { staleTime: 30 * 60_000, queryKey: getListOpenRouterModelsQueryKey({ kind }) } });
+  const kindName = t(`settings.kind.${kind}`);
+  return (
+    <div>
+      <Label>{t('settings.orModel', { kind: kindName })}</Label>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} list={`or-models-${kind}`} placeholder={t('settings.orModelPlaceholder', { example: OR_EXAMPLES[kind] })} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-model" />
+      <datalist id={`or-models-${kind}`}>{(list.data ?? []).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</datalist>
+      <p className="mt-1 text-[11px] text-muted-foreground">{list.isLoading ? t('settings.orModelsLoading') : t('settings.orModelHint', { kind: kindName })}</p>
+    </div>
+  );
+}
 
 export function McpTab() {
   const { t } = useTranslation();
@@ -47,16 +70,23 @@ export function McpTab() {
   const inv = () => ['mcp', 'caps', 'dash'].forEach((k) => qc.invalidateQueries({ queryKey: k === 'mcp' ? getListMcpConnectionsQueryKey() : k === 'caps' ? getGetDeliveryCapabilitiesQueryKey() : getGetDashboardSummaryQueryKey() }));
   const err = (e: unknown) => toast({ variant: 'destructive', title: t('common.error'), description: apiErrorMessage(e) });
 
+  const hasOrKey = (conns.data ?? []).some((c) => isOpenRouter(c.providerType) && !!c.maskedKey);
   const open = (type: McpProviderType, c?: McpConnection) => setForm(c ? {
-    id: c.id, providerType: c.providerType, name: c.name, apiKey: '', endpointUrl: c.endpointUrl ?? '', headers: (c.headerNames ?? []).map((h) => `${h}: `).join('\n'), defaultModel: c.defaultModel ?? '', isActive: c.isActive,
-  } : { providerType: type, name: t(`settings.mcpProviders.${type}.name`), apiKey: '', endpointUrl: '', headers: '', defaultModel: '', isActive: true });
+    id: c.id, providerType: c.providerType, name: c.name, apiKey: '', endpointUrl: c.endpointUrl ?? '', headers: (c.headerNames ?? []).map((h) => `${h}: `).join('\n'), defaultModel: c.defaultModel ?? '', models: { ...(c.models ?? {}) } as Form['models'], isActive: c.isActive,
+  } : { providerType: type, name: t(`settings.mcpProviders.${type}.name`), apiKey: '', endpointUrl: '', headers: '', defaultModel: '', models: {}, isActive: true });
+  const orKind = form ? OPENROUTER_KIND[form.providerType] : undefined;
+  const multiModal = !!form && !orKind && form.providerType !== 'custom_mcp';
 
   const save = () => {
     if (!form) return;
     const isCustom = form.providerType === 'custom_mcp';
     const headers: Record<string, string> = {};
     form.headers.split('\n').forEach((l) => { const i = l.indexOf(':'); if (i > 0) { const k = l.slice(0, i).trim(); const v = l.slice(i + 1).trim(); if (k && v) headers[k] = v; } });
-    const base = { name: form.name, endpointUrl: form.endpointUrl || null, defaultModel: form.defaultModel || null, isActive: form.isActive, ...(Object.keys(headers).length ? { headers } : {}) };
+    const models: ModelsByModality = Object.fromEntries(PROVIDER_MODALITIES[form.providerType].map((m) => [m, form.models[m]?.trim() || null]));
+    const base = {
+      name: form.name, endpointUrl: form.endpointUrl || null, isActive: form.isActive, ...(Object.keys(headers).length ? { headers } : {}),
+      ...(multiModal ? { models, defaultModel: null } : { defaultModel: form.defaultModel.trim() || null }),
+    };
     const done = { onSuccess: () => { inv(); setForm(null); toast({ title: t('common.saved') }); }, onError: err };
     if (form.id) update.mutate({ id: form.id, data: { ...base, ...(form.apiKey ? { apiKey: form.apiKey } : {}) } }, done);
     else create.mutate({ data: { ...base, providerType: form.providerType, connectionType: isCustom ? 'mcp_sse' : 'api_key', apiKey: form.apiKey || null } }, done);
@@ -102,7 +132,9 @@ export function McpTab() {
                       <div className="mt-1 flex flex-wrap gap-x-3 font-mono text-[10.5px] text-muted-foreground">
                         {c.maskedKey && <span className="flex items-center gap-1"><KeyRound className="h-3 w-3" />{c.maskedKey}</span>}
                         {c.endpointUrl && <span className="truncate">{c.endpointUrl}</span>}
-                        {c.defaultModel && <span>{c.defaultModel}</span>}
+                        {isOpenRouter(c.providerType) || c.providerType === 'custom_mcp'
+                          ? c.defaultModel && <span>{c.defaultModel}</span>
+                          : PROVIDER_MODALITIES[c.providerType].map((m) => <span key={m}>{t(`settings.kind.${m}`)}: {c.models?.[m] || PROVIDER_DEFAULT_MODELS[c.providerType]?.[m]}</span>)}
                       </div>
                       {results[c.id] && <div className={cn('mt-1.5 flex items-start gap-1 text-[11px]', results[c.id].ok ? 'text-success' : 'text-destructive')}>{results[c.id].ok ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}{results[c.id].message}{results[c.id].detail && <span className="opacity-70"> · {results[c.id].detail}</span>}</div>}
                     </div>
@@ -125,12 +157,28 @@ export function McpTab() {
                 <div><Label>{t('settings.endpoint')}</Label><Input value={form.endpointUrl} onChange={(e) => setForm({ ...form, endpointUrl: e.target.value })} placeholder="https://mcp.example.com/sse" className="mt-1.5 font-mono text-sm" data-testid="input-mcp-endpoint" /></div>
                 <div><Label>{t('settings.headers')}</Label><Textarea value={form.headers} onChange={(e) => setForm({ ...form, headers: e.target.value })} placeholder="Authorization: Bearer ..." className="mt-1.5 min-h-[70px] font-mono text-xs" data-testid="input-mcp-headers" /><p className="mt-1 text-[11px] text-muted-foreground">{t('settings.headersHint')}</p></div>
               </>}
-              <div><Label>{t('settings.apiKey')}</Label><Input type="password" autoComplete="new-password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={form.id ? t('settings.apiKeyKeep') : 'sk-...'} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-key" /></div>
-              <div><Label>{t('settings.model')}</Label><Input value={form.defaultModel} onChange={(e) => setForm({ ...form, defaultModel: e.target.value })} placeholder={t('settings.modelAuto')} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-model" />{form.providerType !== 'custom_mcp' && <p className="mt-1 text-[11px] text-muted-foreground">{t('settings.modelHint')}</p>}</div>
+              <div>
+                <Label>{t('settings.apiKey')}</Label>
+                <Input type="password" autoComplete="new-password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={form.id ? t('settings.apiKeyKeep') : orKind && hasOrKey ? t('settings.orKeyShared') : orKind ? 'sk-or-...' : 'sk-...'} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-key" />
+                {orKind && <p className="mt-1 text-[11px] text-muted-foreground">{t('settings.orKeyHint')}</p>}
+              </div>
+              {orKind && <OpenRouterModelField kind={orKind} value={form.defaultModel} onChange={(v) => setForm({ ...form, defaultModel: v })} />}
+              {multiModal && (
+                <div className="space-y-2">
+                  {PROVIDER_MODALITIES[form.providerType].map((m) => (
+                    <div key={m}>
+                      <Label className="text-xs">{t('settings.modelFor', { kind: t(`settings.kind.${m}`) })}</Label>
+                      <Input value={form.models[m] ?? ''} onChange={(e) => setForm({ ...form, models: { ...form.models, [m]: e.target.value } })} placeholder={t('settings.modelDefault', { model: PROVIDER_DEFAULT_MODELS[form.providerType]?.[m] ?? '' })} className="mt-1 font-mono text-sm" data-testid={`input-mcp-model-${m}`} />
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-muted-foreground">{t('settings.modelsHint')}</p>
+                </div>
+              )}
+              {form.providerType === 'custom_mcp' && <div><Label>{t('settings.model')}</Label><Input value={form.defaultModel} onChange={(e) => setForm({ ...form, defaultModel: e.target.value })} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-model" /></div>}
               <div className="flex items-center justify-between"><Label>{t('common.active')}</Label><Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} data-testid="switch-mcp-active-form" /></div>
             </div>
           )}
-          <DialogFooter><Button variant="ghost" onClick={() => setForm(null)}>{t('common.cancel')}</Button><Button onClick={save} disabled={!form?.name.trim() || create.isPending || update.isPending} className="pop" data-testid="button-save-mcp">{t('common.save')}</Button></DialogFooter>
+          <DialogFooter><Button variant="ghost" onClick={() => setForm(null)}>{t('common.cancel')}</Button><Button onClick={save} disabled={!form?.name.trim() || (!!orKind && !form?.defaultModel.trim()) || create.isPending || update.isPending} className="pop" data-testid="button-save-mcp">{t('common.save')}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

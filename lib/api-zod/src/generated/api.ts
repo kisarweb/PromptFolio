@@ -651,7 +651,7 @@ export const GetPublishDraftResponse = zod.object({
 })),
   "tags": zod.array(zod.string()),
   "targetModality": zod.enum(['image', 'video', 'audio', 'text']),
-  "suggestedMcpProvider": zod.union([zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'custom_mcp']),zod.null()]).optional()
+  "suggestedMcpProvider": zod.union([zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'openrouter_text', 'openrouter_image', 'openrouter_audio', 'openrouter_video', 'custom_mcp']),zod.null()]).optional()
 })
 
 
@@ -750,9 +750,12 @@ export const GetDeliveryCapabilitiesResponseItem = zod.object({
   "id": zod.string().describe('\'builtin\' or an MCP connection id'),
   "label": zod.string(),
   "source": zod.enum(['builtin', 'mcp']),
-  "providerType": zod.union([zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'custom_mcp']),zod.null()]).optional(),
+  "providerType": zod.union([zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'openrouter_text', 'openrouter_image', 'openrouter_audio', 'openrouter_video', 'custom_mcp']),zod.null()]).optional(),
   "available": zod.boolean(),
-  "reason": zod.string().nullish()
+  "reason": zod.string().nullish(),
+  "model": zod.string().nullish().describe('Model this option uses for the modality'),
+  "voices": zod.array(zod.string()).nullish().describe('Voices the model accepts (null = the app\'s standard voices)'),
+  "durations": zod.array(zod.number().int()).nullish().describe('Video durations in seconds the model accepts (null = 5 or 10)')
 }))
 })
 export const GetDeliveryCapabilitiesResponse = zod.array(GetDeliveryCapabilitiesResponseItem)
@@ -983,11 +986,17 @@ export const DeleteReferenceResponse = zod.object({
 
 export const ListMcpConnectionsResponseItem = zod.object({
   "id": zod.string(),
-  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'custom_mcp']),
+  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'openrouter_text', 'openrouter_image', 'openrouter_audio', 'openrouter_video', 'custom_mcp']),
   "name": zod.string(),
   "connectionType": zod.enum(['api_key', 'mcp_sse']),
   "endpointUrl": zod.string().nullish(),
   "defaultModel": zod.string().nullish(),
+  "models": zod.object({
+  "text": zod.string().nullish(),
+  "image": zod.string().nullish(),
+  "audio": zod.string().nullish(),
+  "video": zod.string().nullish()
+}).optional().describe('Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.'),
   "hasCredentials": zod.boolean(),
   "maskedKey": zod.string().nullish(),
   "headerNames": zod.array(zod.string()).optional(),
@@ -1001,23 +1010,35 @@ export const ListMcpConnectionsResponse = zod.array(ListMcpConnectionsResponseIt
 
 
 export const CreateMcpConnectionBody = zod.object({
-  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'custom_mcp']),
+  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'openrouter_text', 'openrouter_image', 'openrouter_audio', 'openrouter_video', 'custom_mcp']),
   "name": zod.string().min(1),
   "connectionType": zod.enum(['api_key', 'mcp_sse']),
   "endpointUrl": zod.string().nullish(),
   "apiKey": zod.string().nullish(),
   "headers": zod.record(zod.string(), zod.string()).optional(),
   "defaultModel": zod.string().nullish(),
+  "models": zod.object({
+  "text": zod.string().nullish(),
+  "image": zod.string().nullish(),
+  "audio": zod.string().nullish(),
+  "video": zod.string().nullish()
+}).optional().describe('Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.'),
   "isActive": zod.boolean().optional()
 })
 
 export const CreateMcpConnectionResponse = zod.object({
   "id": zod.string(),
-  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'custom_mcp']),
+  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'openrouter_text', 'openrouter_image', 'openrouter_audio', 'openrouter_video', 'custom_mcp']),
   "name": zod.string(),
   "connectionType": zod.enum(['api_key', 'mcp_sse']),
   "endpointUrl": zod.string().nullish(),
   "defaultModel": zod.string().nullish(),
+  "models": zod.object({
+  "text": zod.string().nullish(),
+  "image": zod.string().nullish(),
+  "audio": zod.string().nullish(),
+  "video": zod.string().nullish()
+}).optional().describe('Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.'),
   "hasCredentials": zod.boolean(),
   "maskedKey": zod.string().nullish(),
   "headerNames": zod.array(zod.string()).optional(),
@@ -1039,16 +1060,28 @@ export const UpdateMcpConnectionBody = zod.object({
   "apiKey": zod.string().nullish().describe('Omit to keep the stored key'),
   "headers": zod.record(zod.string(), zod.string()).optional(),
   "defaultModel": zod.string().nullish(),
+  "models": zod.object({
+  "text": zod.string().nullish(),
+  "image": zod.string().nullish(),
+  "audio": zod.string().nullish(),
+  "video": zod.string().nullish()
+}).optional().describe('Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.'),
   "isActive": zod.boolean().optional()
 })
 
 export const UpdateMcpConnectionResponse = zod.object({
   "id": zod.string(),
-  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'custom_mcp']),
+  "providerType": zod.enum(['google_nano_banana', 'openai_chatgpt', 'runway', 'openrouter_text', 'openrouter_image', 'openrouter_audio', 'openrouter_video', 'custom_mcp']),
   "name": zod.string(),
   "connectionType": zod.enum(['api_key', 'mcp_sse']),
   "endpointUrl": zod.string().nullish(),
   "defaultModel": zod.string().nullish(),
+  "models": zod.object({
+  "text": zod.string().nullish(),
+  "image": zod.string().nullish(),
+  "audio": zod.string().nullish(),
+  "video": zod.string().nullish()
+}).optional().describe('Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.'),
   "hasCredentials": zod.boolean(),
   "maskedKey": zod.string().nullish(),
   "headerNames": zod.array(zod.string()).optional(),
@@ -1076,6 +1109,17 @@ export const TestMcpConnectionResponse = zod.object({
   "detail": zod.string().nullish(),
   "remoteViewUrl": zod.string().nullish()
 })
+
+
+export const ListOpenRouterModelsQueryParams = zod.object({
+  "kind": zod.enum(['image', 'video', 'audio', 'text'])
+})
+
+export const ListOpenRouterModelsResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string()
+})
+export const ListOpenRouterModelsResponse = zod.array(ListOpenRouterModelsResponseItem)
 
 
 export const GetStorageOverviewResponse = zod.object({

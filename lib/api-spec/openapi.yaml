@@ -747,6 +747,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/TestResult"
 
+  /settings/openrouter/models:
+    get:
+      operationId: listOpenRouterModels
+      tags: [settings]
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/Modality" }
+      responses:
+        "200":
+          description: OpenRouter models that produce this kind of output
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OpenRouterModel" }
+
   # ---------------- SETTINGS: STORAGE ----------------
   /settings/storage:
     get:
@@ -854,7 +872,7 @@ components:
       enum: [builder_agent, builder_prompt]
     McpProviderType:
       type: string
-      enum: [google_nano_banana, openai_chatgpt, runway, custom_mcp]
+      enum: [google_nano_banana, openai_chatgpt, runway, openrouter_text, openrouter_image, openrouter_audio, openrouter_video, custom_mcp]
     McpConnectionType:
       type: string
       enum: [api_key, mcp_sse]
@@ -1283,6 +1301,17 @@ components:
             - type: "null"
         available: { type: boolean }
         reason: { type: ["string", "null"] }
+        model:
+          type: ["string", "null"]
+          description: Model this option uses for the modality
+        voices:
+          type: ["array", "null"]
+          items: { type: string }
+          description: Voices the model accepts (null = the app's standard voices)
+        durations:
+          type: ["array", "null"]
+          items: { type: integer }
+          description: Video durations in seconds the model accepts (null = 5 or 10)
     ModalityCapability:
       type: object
       required: [modality, engines]
@@ -1432,6 +1461,7 @@ components:
         connectionType: { $ref: "#/components/schemas/McpConnectionType" }
         endpointUrl: { type: ["string", "null"] }
         defaultModel: { type: ["string", "null"] }
+        models: { $ref: "#/components/schemas/ModelsByModality" }
         hasCredentials: { type: boolean }
         maskedKey: { type: ["string", "null"] }
         headerNames:
@@ -1452,6 +1482,7 @@ components:
           type: object
           additionalProperties: { type: string }
         defaultModel: { type: ["string", "null"] }
+        models: { $ref: "#/components/schemas/ModelsByModality" }
         isActive: { type: boolean }
     McpConnectionUpdate:
       type: object
@@ -1465,7 +1496,22 @@ components:
           type: object
           additionalProperties: { type: string }
         defaultModel: { type: ["string", "null"] }
+        models: { $ref: "#/components/schemas/ModelsByModality" }
         isActive: { type: boolean }
+    ModelsByModality:
+      type: object
+      description: Model chosen per modality for providers that serve several (OpenAI, Gemini, Runway). Blank uses the provider default.
+      properties:
+        text: { type: ["string", "null"] }
+        image: { type: ["string", "null"] }
+        audio: { type: ["string", "null"] }
+        video: { type: ["string", "null"] }
+    OpenRouterModel:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
     TestResult:
       type: object
       required: [ok, message]

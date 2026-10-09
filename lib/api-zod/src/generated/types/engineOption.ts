@@ -17,4 +17,19 @@ export interface EngineOption {
   available: boolean;
   /** @nullable */
   reason?: string | null;
+  /**
+     * Model this option uses for the modality
+     * @nullable
+     */
+  model?: string | null;
+  /**
+     * Voices the model accepts (null = the app's standard voices)
+     * @nullable
+     */
+  voices?: string[] | null;
+  /**
+     * Video durations in seconds the model accepts (null = 5 or 10)
+     * @nullable
+     */
+  durations?: number[] | null;
 }

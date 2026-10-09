@@ -152,6 +152,18 @@ def asset_out(asset: GeneratedAsset) -> dict[str, Any]:
     }
 
 
+def _chosen_models(conn: McpConnection) -> dict[str, str]:
+    """Models the user picked per modality (legacy single-model connections are mapped to the modality it belongs to)."""
+    from .ai import MCP_SUPPORT, _model_kind  # local import keeps serializers free of the SDK clients at import time
+
+    chosen = {k: v for k, v in (conn.models or {}).items() if v}
+    if conn.default_model and conn.provider_type in ("openai_chatgpt", "google_nano_banana", "runway"):
+        kind = _model_kind(conn.provider_type, conn.default_model)
+        if kind and kind in MCP_SUPPORT.get(conn.provider_type, set()):
+            chosen.setdefault(kind, conn.default_model)
+    return chosen
+
+
 def mcp_out(conn: McpConnection) -> dict[str, Any]:
     return {
         "id": str(conn.id),
@@ -160,6 +172,7 @@ def mcp_out(conn: McpConnection) -> dict[str, Any]:
         "connectionType": conn.connection_type,
         "endpointUrl": conn.endpoint_url,
         "defaultModel": conn.default_model,
+        "models": _chosen_models(conn),
         "hasCredentials": bool(conn.encrypted_credentials),
         "maskedKey": conn.masked_key,
         "headerNames": conn.header_names or [],

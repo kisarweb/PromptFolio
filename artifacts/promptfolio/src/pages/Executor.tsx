@@ -24,9 +24,10 @@ import { BRAND_VAR, toBrandInput, type BrandRef } from '@/lib/references';
 import { fieldError, isRequired } from '@/lib/variables';
 import { VariableInfo } from '@/components/pf/VariableInfo';
 import { cn } from '@/lib/utils';
+import { getLastEngine, setLastEngine } from '@/lib/engines';
 
 const VOICES = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'];
-const AUTO = '__auto__';
+const DURATIONS = [5, 10];
 
 function Seg<T extends string | number,>({ value, options, onChange, testid }: { value: T; options: { v: T; label: string }[]; onChange: (v: T) => void; testid: string }) {
   return (
@@ -78,7 +79,7 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
   const [values, setValues] = useState<Record<string, string>>({});
   const [extra, setExtra] = useState('');
   const [brandRefs, setBrandRefs] = useState<BrandRef[]>([]);
-  const [engine, setEngine] = useState(AUTO);
+  const [engine, setEngine] = useState('');
   const [aspect, setAspect] = useState<ExecuteInputAspectRatio>(modality === 'video' ? '16:9' : '1:1');
   const [duration, setDuration] = useState(5);
   const [voice, setVoice] = useState('alloy');
@@ -97,7 +98,30 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
   const [showErrors, setShowErrors] = useState(false);
   const invalid = new Set(problems.map((p) => p.v.name));
   const focusField = (name: string) => document.querySelector<HTMLElement>(name === BRAND_VAR ? '[data-testid="input-brand-reference"]' : `[data-testid="input-var-${name}"]`)?.focus();
-  const engines = useMemo(() => caps.data?.find((c) => c.modality === modality)?.engines ?? [], [caps.data, modality]);
+  // Only engines that can actually run this modality right now; the user always picks one explicitly.
+  const engines = useMemo(() => (caps.data?.find((c) => c.modality === modality)?.engines ?? []).filter((e) => e.available), [caps.data, modality]);
+  const missingReason = caps.data?.find((c) => c.modality === modality)?.engines.find((e) => !e.available)?.reason;
+  const selected = engines.find((e) => e.id === engine);
+  const voices = selected?.voices?.length ? selected.voices : VOICES;
+  const durations = selected?.durations?.length ? selected.durations : DURATIONS;
+
+  useEffect(() => {
+    if (!engines.length || engines.some((e) => e.id === engine)) return;
+    const preferred = prompt?.preferredMcpId ?? undefined;
+    const last = getLastEngine(modality);
+    setEngine((engines.find((e) => e.id === preferred) ?? engines.find((e) => e.id === last) ?? engines[0]).id);
+  }, [engines, engine, prompt?.preferredMcpId, modality]);
+
+  useEffect(() => {
+    if (!prompt?.preferredMcpId) return;
+    if (engines.some((e) => e.id === prompt.preferredMcpId)) setEngine(prompt.preferredMcpId);
+  }, [prompt?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (!voices.includes(voice)) setVoice(voices[0]); }, [voices, voice]);
+  useEffect(() => {
+    if (!durations.includes(duration)) setDuration(durations.reduce((a, b) => (Math.abs(b - 5) < Math.abs(a - 5) ? b : a)));
+  }, [durations, duration]);
+  const pickEngine = (id: string) => { setEngine(id); setLastEngine(modality, id); };
 
   useEffect(() => {
     if (!promptId && prompts.data?.length) setPromptId(prompts.data[0].id);
@@ -120,7 +144,7 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
   }, [exec.isPending]);
 
   const run = () => {
-    if (!prompt) return;
+    if (!prompt || !selected) return;
     if (problems.length) {
       setShowErrors(true);
       focusField(problems[0].v.name);
@@ -129,7 +153,7 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
     setLastError(null);
     exec.mutate({
       data: {
-        promptId: prompt.id, modality, variables: values, engineId: engine === AUTO ? null : engine,
+        promptId: prompt.id, modality, variables: values, engineId: selected.id,
         extraInstructions: extra || null,
         brandReferences: brandRefs.map(toBrandInput),
         ...(modality === 'image' || modality === 'video' ? { aspectRatio: aspect } : {}),
@@ -223,18 +247,22 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
         <div className="rise space-y-4 rounded-2xl border bg-card p-4" style={{ animationDelay: '120ms' }}>
           <div>
             <Label className="eyebrow flex items-center gap-1.5"><Cpu className="h-3 w-3" />{t('delivery.engine')}</Label>
-            {caps.isLoading ? <Skeleton className="mt-2 h-10" /> : (
-              <Select value={engine} onValueChange={setEngine}>
-                <SelectTrigger className="mt-2" data-testid="select-engine"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={AUTO}>{t('common.auto')}</SelectItem>
-                  {engines.map((e) => (
-                    <SelectItem key={e.id} value={e.id} disabled={!e.available}>
-                      <div className="flex flex-col items-start"><span>{e.label}</span>{!e.available && e.reason && <span className="text-[10.5px] text-muted-foreground">{e.reason}</span>}</div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {caps.isLoading ? <Skeleton className="mt-2 h-10" /> : !engines.length ? (
+              <div className="mt-2 rounded-lg border border-dashed border-warning/50 p-3 text-xs text-warning" data-testid="text-no-engine">
+                {t('delivery.noEngine', { kind: t(`settings.kind.${modality}`) })}
+                {missingReason && <span className="mt-1 block text-muted-foreground">{missingReason}</span>}
+                <Link href="/settings" className="mt-1.5 block font-medium text-primary">{t('settings.mcpTitle')}</Link>
+              </div>
+            ) : (
+              <>
+                <Select value={selected ? engine : ''} onValueChange={pickEngine}>
+                  <SelectTrigger className="mt-2 min-w-0 [&>span]:truncate" data-testid="select-engine"><SelectValue placeholder={t('delivery.pickEngine')} /></SelectTrigger>
+                  <SelectContent>
+                    {engines.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">{t('delivery.engineHint', { kind: t(`settings.kind.${modality}`) })}</p>
+              </>
             )}
           </div>
           {(modality === 'image' || modality === 'video') && (
@@ -244,13 +272,13 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
             </div>
           )}
           {modality === 'video' && (
-            <div><Label className="eyebrow">{t('delivery.duration')}</Label><div className="mt-2"><Seg value={duration} onChange={(v) => setDuration(v)} testid="button-duration" options={[{ v: 5, label: '5s' }, { v: 10, label: '10s' }]} /></div></div>
+            <div><Label className="eyebrow">{t('delivery.duration')}</Label><div className="mt-2"><Seg value={duration} onChange={(v) => setDuration(v)} testid="button-duration" options={durations.map((d) => ({ v: d, label: `${d}s` }))} /></div></div>
           )}
           {modality === 'audio' && (
             <div>
               <Label className="eyebrow">{t('delivery.voice')}</Label>
-              <div className="mt-2 grid grid-cols-3 gap-1.5">
-                {VOICES.map((v) => <button key={v} onClick={() => setVoice(v)} data-testid={`button-voice-${v}`} className={cn('rounded-lg border py-1.5 text-xs capitalize transition-all', voice === v ? 'border-accent bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted')}>{v}</button>)}
+              <div className="mt-2 grid max-h-48 grid-cols-3 gap-1.5 overflow-y-auto">
+                {voices.map((v) => <button key={v} onClick={() => setVoice(v)} data-testid={`button-voice-${v}`} className={cn('rounded-lg border py-1.5 text-xs capitalize transition-all', voice === v ? 'border-accent bg-accent/12 text-accent' : 'text-muted-foreground hover:bg-muted')}>{v}</button>)}
               </div>
             </div>
           )}
@@ -265,7 +293,7 @@ function Workspace({ modality, initialPrompt }: { modality: Modality; initialPro
               ))}
             </div>
           )}
-          <Button onClick={run} disabled={!prompt || exec.isPending || problems.length > 0} size="lg" className="pop h-12 w-full text-[15px]" data-testid="button-execute">
+          <Button onClick={run} disabled={!prompt || !selected || exec.isPending || problems.length > 0} size="lg" className="pop h-12 w-full text-[15px]" data-testid="button-execute">
             {exec.isPending ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />{t('delivery.executing')}</> : <><Play />{t('delivery.execute')}</>}
           </Button>
         </div>

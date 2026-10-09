@@ -7,7 +7,18 @@ Modality = Literal["image", "video", "audio", "text"]
 StorageProvider = Literal["google_drive_mcp", "cloudflare_r2", "aws_s3"]
 AgentRole = Literal["meta_agent_builder", "prompt_builder", "delivery_executor"]
 Workspace = Literal["builder_agent", "builder_prompt"]
-McpProviderType = Literal["google_nano_banana", "openai_chatgpt", "runway", "custom_mcp"]
+McpProviderType = Literal[
+    "google_nano_banana", "openai_chatgpt", "runway",
+    "openrouter_text", "openrouter_image", "openrouter_audio", "openrouter_video",
+    "custom_mcp",
+]
+
+
+class ModelsByModality(BaseModel):
+    text: Optional[str] = None
+    image: Optional[str] = None
+    audio: Optional[str] = None
+    video: Optional[str] = None
 Scope = Literal["all", "image", "video", "audio", "text"]
 
 
@@ -151,6 +162,7 @@ class McpConnectionInput(BaseModel):
     apiKey: Optional[str] = None
     headers: Optional[dict[str, str]] = None
     defaultModel: Optional[str] = None
+    models: Optional[ModelsByModality] = None
     isActive: Optional[bool] = None
 
 
@@ -160,6 +172,7 @@ class McpConnectionUpdate(BaseModel):
     apiKey: Optional[str] = None
     headers: Optional[dict[str, str]] = None
     defaultModel: Optional[str] = None
+    models: Optional[ModelsByModality] = None
     isActive: Optional[bool] = None
 
 

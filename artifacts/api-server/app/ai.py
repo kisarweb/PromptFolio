@@ -1,6 +1,6 @@
 """Generation engines.
 
-User engines come from encrypted connections (BYOK) saved in Settings: OpenAI, Google Gemini/Veo, Runway.
+User engines come from encrypted connections (BYOK) saved in Settings: OpenAI, Google Gemini/Veo, Runway, OpenRouter.
 Built-in engines (Replit AI Integrations proxy) exist only in the Replit development environment.
 """
 import asyncio
@@ -17,7 +17,7 @@ from google import genai
 from google.genai import types as gtypes
 from openai import AsyncOpenAI
 
-from . import config
+from . import config, openrouter
 
 log = logging.getLogger("promptfolio.ai")
 
@@ -58,8 +58,8 @@ PROVIDER_ERROR_TEXTS: dict[str, dict[str, str]] = {
         "en": "{provider} rejected your key (invalid, revoked or not allowed to use this model). Check it in Settings > AI connectors.",
     },
     "model_unavailable": {
-        "pt": "O modelo {model} não está disponível para sua chave do {provider}. Deixe o campo Modelo em branco em Configurações > Conectores de IA para o app escolher automaticamente.",
-        "en": "The {model} model is not available for your {provider} key. Leave the Model field blank in Settings > AI connectors so the app picks one automatically.",
+        "pt": "O modelo {model} não está disponível para sua chave do {provider}. Confira o nome do modelo em Configurações > Conectores de IA.",
+        "en": "The {model} model is not available for your {provider} key. Check the model name in Settings > AI connectors.",
     },
 }
 
@@ -75,7 +75,9 @@ def _provider_error(engine: "Engine", exc: Exception, model: str = "") -> Engine
     provider = engine.label.split(" (")[0] if engine.label else "AI"
     params = {"provider": provider, "model": model or "?"}
     code: str | None = None
-    if status == 429 or "resource_exhausted" in low:
+    if status == 402:
+        code = "no_credits"
+    elif status == 429 or "resource_exhausted" in low:
         if "free_tier" in low and "limit: 0" in low:
             code = "free_tier_unavailable"
         elif "insufficient_quota" in low or "credit balance" in low or "out of credits" in low:
@@ -84,7 +86,7 @@ def _provider_error(engine: "Engine", exc: Exception, model: str = "") -> Engine
             code = "rate_limited"
     elif status in (401, 403) or "api key not valid" in low or "invalid_api_key" in low or "permission_denied" in low:
         code = "invalid_key"
-    elif status == 404 or "not_found" in low and "model" in low:
+    elif status == 404 or ("not_found" in low and "model" in low) or "not a valid model" in low:
         code = "model_unavailable"
     if code:
         return EngineError(f"{engine.label}: {raw[:500]}", 400 if code != "rate_limited" else 429, code, params)
@@ -126,6 +128,7 @@ class Engine:
     endpoint_url: str | None = None
     default_model: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
+    models: dict[str, str] = field(default_factory=dict)  # per-modality choice for multi-modal providers
 
 
 def builtin_available() -> bool:
@@ -141,6 +144,10 @@ MCP_SUPPORT: dict[str, set[str]] = {
     "openai_chatgpt": {"text", "image", "audio"},
     "google_nano_banana": {"text", "image", "audio", "video"},
     "runway": {"image", "video"},
+    "openrouter_text": {"text"},
+    "openrouter_image": {"image"},
+    "openrouter_audio": {"audio"},
+    "openrouter_video": {"video"},
     "custom_mcp": set(),
 }
 
@@ -148,12 +155,16 @@ PROVIDER_LABELS = {
     "openai_chatgpt": "OpenAI",
     "google_nano_banana": "Google Gemini",
     "runway": "Runway",
+    "openrouter_text": "OpenRouter",
+    "openrouter_image": "OpenRouter",
+    "openrouter_audio": "OpenRouter",
+    "openrouter_video": "OpenRouter",
     "custom_mcp": "MCP",
 }
 
 
-NO_KEY_REASON = "Add your own OpenAI or Google Gemini API key in Settings > AI connectors."
-NO_VIDEO_REASON = "Video needs your own Runway or Google (Veo) API key in Settings > AI connectors."
+NO_KEY_REASON = "Add your own OpenAI, Google Gemini or OpenRouter API key in Settings > AI connectors."
+NO_VIDEO_REASON = "Video needs your own Runway, Google (Veo) or OpenRouter Video connector in Settings > AI connectors."
 
 
 def builtin_engines(modality: str) -> list[dict[str, Any]]:
@@ -175,8 +186,8 @@ def missing_engine_placeholder(modality: str) -> dict[str, Any]:
     return _eng("builtin", "PromptFolio AI", False, NO_VIDEO_REASON if modality == "video" else NO_KEY_REASON)
 
 
-def _eng(eid: str, label: str, available: bool, reason: str | None, source: str = "builtin", provider: str | None = None) -> dict[str, Any]:
-    return {"id": eid, "label": label, "source": source, "providerType": provider, "available": available, "reason": reason}
+def _eng(eid: str, label: str, available: bool, reason: str | None, source: str = "builtin", provider: str | None = None, model: str | None = None) -> dict[str, Any]:
+    return {"id": eid, "label": label, "source": source, "providerType": provider, "available": available, "reason": reason, "model": model, "voices": None, "durations": None}
 
 
 # One connection serves several modalities; its saved model is used only for the modality it belongs to.
@@ -204,39 +215,55 @@ def _model_kind(provider: str | None, model: str) -> str | None:
     return None
 
 
+def resolve_model(provider_type: str | None, default_model: str | None, models: dict[str, str] | None, modality: str) -> str:
+    """Model a connection uses for one modality: OpenRouter connectors have exactly one; multi-modal providers keep one
+    per modality (falling back to the legacy single field when it belongs to that modality, then the provider default)."""
+    if openrouter.is_openrouter(provider_type):
+        return default_model or ""
+    chosen = (models or {}).get(modality)
+    if chosen:
+        return chosen
+    if default_model and _model_kind(provider_type, default_model) == modality:
+        return default_model
+    return PROVIDER_DEFAULT_MODELS.get(provider_type or "", {}).get(modality) or ""
+
+
 def model_for(engine: "Engine", modality: str) -> str:
-    if engine.default_model and _model_kind(engine.provider_type, engine.default_model) == modality:
-        return engine.default_model
-    return PROVIDER_DEFAULT_MODELS.get(engine.provider_type or "", {}).get(modality) or engine.default_model or ""
+    return resolve_model(engine.provider_type, engine.default_model, engine.models, modality)
 
 
-def mcp_engine_option(conn_id: str, name: str, provider_type: str, is_active: bool, has_key: bool, modality: str) -> dict[str, Any] | None:
+def mcp_engine_option(conn_id: str, name: str, provider_type: str, is_active: bool, has_key: bool, modality: str, model: str | None = None) -> dict[str, Any] | None:
     supported = modality in MCP_SUPPORT.get(provider_type, set())
     if provider_type == "custom_mcp":
         return _eng(conn_id, name, False, "Custom MCP servers are stored and testable; direct execution through custom tools is not supported yet.", "mcp", provider_type)
     if not supported:
         return None
+    label = f"{name} · {model}" if model else name
     if not is_active:
-        return _eng(conn_id, name, False, "Connection is disabled", "mcp", provider_type)
+        return _eng(conn_id, label, False, "Connection is disabled", "mcp", provider_type, model)
     if not has_key:
-        return _eng(conn_id, name, False, "No API key saved", "mcp", provider_type)
-    return _eng(conn_id, f"{name} ({PROVIDER_LABELS.get(provider_type, provider_type)})", True, None, "mcp", provider_type)
+        return _eng(conn_id, label, False, "No API key saved", "mcp", provider_type, model)
+    if not model:
+        return _eng(conn_id, label, False, "No model chosen for this connector", "mcp", provider_type, model)
+    return _eng(conn_id, label, True, None, "mcp", provider_type, model)
 
 
 # ------------------------------------------------------------------ chat / text
 def _openai_for(engine: Engine) -> AsyncOpenAI:
     if engine.source == "builtin":
         return _builtin_openai
+    if openrouter.is_openrouter(engine.provider_type):
+        return AsyncOpenAI(api_key=engine.api_key, base_url=openrouter.BASE_URL, default_headers=openrouter.APP_HEADERS)
     return AsyncOpenAI(api_key=engine.api_key, base_url=engine.endpoint_url or None, default_headers=engine.headers or None)
 
 
 async def chat_complete(engine: Engine, system: str, messages: list[dict[str, str]], temperature: float | None = None, images: RefImages | None = None) -> str:
     try:
-        if engine.source == "builtin" or engine.provider_type == "openai_chatgpt":
+        if engine.source == "builtin" or engine.provider_type in ("openai_chatgpt", "openrouter_text"):
             client = _openai_for(engine)
             model = config.BUILTIN_CHAT_MODEL if engine.source == "builtin" else model_for(engine, "text")
             kwargs: dict[str, Any] = {}
-            if temperature is not None and not model.startswith(("gpt-5", "o1", "o3", "o4")):
+            if temperature is not None and not model.split("/")[-1].startswith(("gpt-5", "o1", "o3", "o4")):
                 kwargs["temperature"] = temperature
             oa_messages: list[dict[str, Any]] = [{"role": "system", "content": system}, *messages]
             if images:
@@ -279,7 +306,7 @@ async def json_complete(engine: Engine, system: str, user: str, smart: bool = Fa
     """Structured helper calls (metadata, field docs, prompt compiling) run on the user's own text engine."""
     if engine.source == "builtin":
         client, model = _builtin_openai, (config.BUILTIN_CHAT_MODEL if smart else config.BUILTIN_FAST_MODEL)
-    elif engine.provider_type == "openai_chatgpt":
+    elif engine.provider_type in ("openai_chatgpt", "openrouter_text"):
         client, model = _openai_for(engine), model_for(engine, "text")
     elif engine.provider_type == "google_nano_banana":
         resp = await genai.Client(api_key=engine.api_key).aio.models.generate_content(
@@ -295,7 +322,16 @@ async def json_complete(engine: Engine, system: str, user: str, smart: bool = Fa
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         response_format={"type": "json_object"},
     )
-    return resp.choices[0].message.content or "{}"
+    return _extract_json(resp.choices[0].message.content or "{}")
+
+
+def _extract_json(text: str) -> str:
+    """Some OpenRouter models ignore json mode and wrap the object in prose or code fences."""
+    t = text.strip()
+    if t.startswith("{") and t.endswith("}"):
+        return t
+    start, end = t.find("{"), t.rfind("}")
+    return t[start:end + 1] if start != -1 and end > start else t
 
 
 async def generate_text(engine: Engine, prompt: str, language: str, images: RefImages | None = None) -> str:
@@ -404,6 +440,8 @@ async def generate_image(engine: Engine, prompt: str, aspect: str, images: RefIm
                 body["referenceImages"] = [{"uri": _data_uri(d, m), "tag": f"brand{i + 1}"} for i, (d, m) in enumerate(images[:3])]
             url = await _runway_task(engine, "/text_to_image", body)
             return await _download(url, "image/png")
+        if engine.provider_type == "openrouter_image":
+            return await openrouter.generate_image(engine.api_key, model_for(engine, "image"), prompt, aspect, images)
     except EngineError:
         raise
     except Exception as exc:
@@ -427,6 +465,12 @@ GEMINI_VOICES = {"alloy": "Kore", "echo": "Puck", "fable": "Charon", "onyx": "Fe
 
 
 async def generate_audio(engine: Engine, prompt: str, voice: str) -> tuple[bytes, str]:
+    if engine.provider_type == "openrouter_audio":  # voices are model-specific; checked against the catalog
+        try:
+            return await openrouter.generate_speech(engine.api_key, model_for(engine, "audio"), prompt, voice)
+        except Exception as exc:
+            log.exception("audio generation failed")
+            raise _provider_error(engine, exc, model_for(engine, "audio")) from exc
     voice = voice if voice in GEMINI_VOICES else "alloy"
     try:
         if engine.source == "builtin":
@@ -530,6 +574,8 @@ async def generate_video(engine: Engine, prompt: str, aspect: str, duration: int
                 r = await http.get(video.uri, headers={"x-goog-api-key": engine.api_key or ""})
                 r.raise_for_status()
                 return r.content, "video/mp4"
+        if engine.provider_type == "openrouter_video":
+            return await openrouter.generate_video(engine.api_key, model_for(engine, "video"), prompt, aspect, duration, images)
     except EngineError:
         raise
     except Exception as exc:
@@ -597,6 +643,15 @@ async def test_engine(engine: Engine) -> tuple[bool, str, str | None]:
                 credits = r.json().get("creditBalance")
                 return True, "Runway connection OK", f"Credit balance: {credits}" if credits is not None else None
             return False, f"Runway returned {r.status_code}", r.text[:300]
+        if openrouter.is_openrouter(engine.provider_type):
+            info = await openrouter.key_info(engine.api_key)
+            kind = openrouter.PROVIDER_KIND[engine.provider_type or ""]
+            model = engine.default_model or ""
+            cat = await openrouter.catalog(kind)
+            if cat is not None and model not in cat:
+                return False, f"Key OK, but {model or '(no model)'} is not an OpenRouter {kind} model", None
+            left = info.get("limit_remaining")
+            return True, "OpenRouter connection OK", f"{model}" + (f" · credit left: {left}" if left is not None else "")
         if engine.provider_type == "custom_mcp":
             if not engine.endpoint_url:
                 return False, "Endpoint URL is required", None

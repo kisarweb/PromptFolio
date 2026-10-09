@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from . import ai
+from . import ai, openrouter
 from .crypto import decrypt_data
 from .models import McpConnection, User
 
@@ -21,6 +21,7 @@ def engine_from_connection(conn: McpConnection) -> ai.Engine:
         endpoint_url=conn.endpoint_url,
         default_model=conn.default_model,
         headers=creds.get("headers") or {},
+        models={k: v for k, v in (conn.models or {}).items() if v},
     )
 
 
@@ -41,9 +42,17 @@ async def capabilities(db: AsyncSession, user: User) -> list[dict]:
     for modality in ("image", "video", "audio", "text"):
         engines = list(ai.builtin_engines(modality))
         for c in conns:
-            opt = ai.mcp_engine_option(str(c.id), c.name, c.provider_type, c.is_active, bool(c.encrypted_credentials), modality)
-            if opt:
-                engines.append(opt)
+            model = ai.resolve_model(c.provider_type, c.default_model, c.models, modality) or None
+            opt = ai.mcp_engine_option(str(c.id), c.name, c.provider_type, c.is_active, bool(c.encrypted_credentials), modality, model)
+            if not opt:
+                continue
+            if openrouter.is_openrouter(c.provider_type) and model:
+                info = await openrouter.model_info(modality, model) or {}
+                if modality == "audio":
+                    opt["voices"] = info.get("voices") or None
+                if modality == "video":
+                    opt["durations"] = info.get("durations") or None
+            engines.append(opt)
         if not any(e["available"] for e in engines):
             engines.insert(0, ai.missing_engine_placeholder(modality))
         out.append({"modality": modality, "engines": engines})
@@ -78,17 +87,18 @@ async def resolve_engine(db: AsyncSession, user: User, modality: str, engine_id:
     return engine_from_connection(conn)
 
 
-TEXT_PROVIDERS = ("openai_chatgpt", "google_nano_banana")
+TEXT_PROVIDERS = ("openai_chatgpt", "google_nano_banana", "openrouter_text")
 
 
 async def assistant_engine(db: AsyncSession, user: User, preferred_mcp_id=None, required: bool = True) -> ai.Engine | None:
     """Text engine for the app's own AI work (Builder chat, metadata, field docs, prompt compiling).
 
-    Order: the agent's preferred connection -> the user's OpenAI key -> the user's Gemini key -> built-in (Replit dev only).
+    Order: the agent's preferred connection -> the user's OpenAI key -> Gemini key -> OpenRouter Text -> built-in (Replit dev only).
     """
     usable = [
         c for c in await user_connections(db, user)
         if c.is_active and c.encrypted_credentials and c.provider_type in TEXT_PROVIDERS
+        and (c.provider_type != "openrouter_text" or c.default_model)
     ]
     if preferred_mcp_id:
         preferred = next((c for c in usable if str(c.id) == str(preferred_mcp_id)), None)
