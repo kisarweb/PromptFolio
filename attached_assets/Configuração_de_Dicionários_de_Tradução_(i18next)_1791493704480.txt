@@ -1,0 +1,55 @@
+// frontend/src/locales/pt-BR.json
+{
+  "sidebar": {
+    "builder": "Estúdio Construtor",
+    "agents": "Criar Agentes",
+    "prompts": "Criar Prompts",
+    "delivery": "Estúdio Executor",
+    "catalog": "Catálogo da Coleção",
+    "settings": "Configurações"
+  },
+  "builder": {
+    "lock_banner": "Agente Conectado. O seletor de agente foi travado nesta sessão para assegurar precisão lógica.",
+    "select_agent": "Escolha o Agente especialista para iniciar",
+    "save_btn": "Salvar e Publicar",
+    "modal_title": "Revisão Final e Publicação de Prompt"
+  },
+  "delivery": {
+    "tabs": {
+      "image": "Imagens",
+      "video": "Vídeos",
+      "audio": "Áudios",
+      "text": "Textos"
+    },
+    "autosave_badge": "Auto-salvo com sucesso em: {{provider}}"
+  }
+}
+
+---
+
+// frontend/src/locales/en-US.json
+{
+  "sidebar": {
+    "builder": "Builder Studio",
+    "agents": "Agent Workshop",
+    "prompts": "Prompt Engineering",
+    "delivery": "Delivery Workspace",
+    "catalog": "PromptFolio Catalog",
+    "settings": "Settings"
+  },
+  "builder": {
+    "lock_banner": "Agent Connected. Agent switching is permanently locked for this session to prevent hallucinations.",
+    "select_agent": "Select an expert Agent to begin",
+    "save_btn": "Save & Publish",
+    "modal_title": "Final Review & Prompt Publication"
+  },
+  "delivery": {
+    "tabs": {
+      "image": "Images",
+      "video": "Videos",
+      "audio": "Audio",
+      "text": "Texts"
+    },
+    "autosave_badge": "Auto-saved to: {{provider}}"
+  }
+}

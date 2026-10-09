@@ -1,0 +1,116 @@
+// frontend/src/store/useAuthStore.ts
+import { create } from 'zustand';
+
+interface UserProfile {
+  id: number;
+  email: string;
+  fullName: string;
+  avatarUrl: string;
+}
+
+interface AuthState {
+  user: UserProfile | null;
+  isAuthenticated: boolean;
+  isDemoMode: boolean;
+  loginViaGoogle: () => void;
+  loginDemoLocal: () => void;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  isAuthenticated: false,
+  isDemoMode: false,
+  loginViaGoogle: () => {
+    // Redirecionamento oficial para o fluxo de OAuth do FastAPI
+    window.location.href = `${import.meta.env.VITE_API_URL}/api/auth/google/login`;
+  },
+  loginDemoLocal: () => {
+    set({
+      user: { id: 99, email: "dev.demo@replit.local", fullName: "Developer Demo", avatarUrl: "" },
+      isAuthenticated: true,
+      isDemoMode: true
+    });
+  },
+  logout: () => set({ user: null, isAuthenticated: false, isDemoMode: false })
+}));
+
+---
+
+// frontend/src/store/useChatStore.ts
+import { create } from 'zustand';
+
+interface Message {
+  id?: number;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+interface ChatState {
+  currentSessionId: number | null;
+  messages: Message[];
+  lockedAgentId: number | null;
+  isSending: boolean;
+  initializeSession: (agentId: number) => Promise<void>;
+  sendMessage: (text: string) => Promise<void>;
+}
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  currentSessionId: null,
+  messages: [],
+  lockedAgentId: null,
+  isSending: false,
+  initializeSession: async (agentId) => {
+    // Cria sessão no backend e já pré-seleciona o agente
+    set({ currentSessionId: 1001, messages: [], lockedAgentId: agentId });
+  },
+  sendMessage: async (text) => {
+    const { currentSessionId, lockedAgentId, messages } = get();
+    if (!currentSessionId) return;
+
+    const userMsg: Message = { role: 'user', content: text };
+    set({ messages: [...messages, userMsg], isSending: true });
+
+    try {
+      // Chamada HTTP passando o payload para /api/builder/chat/{session_id}/message
+      // Simulando o retorno com trava ativada do agente
+      const responseText = `Resposta simulada gerada pelo Agente especialista [ID: ${lockedAgentId}].`;
+      const aiMsg: Message = { role: 'assistant', content: responseText };
+      
+      set((state) => ({
+        messages: [...state.messages, aiMsg],
+        isSending: false
+      }));
+    } catch (error) {
+      set({ isSending: false });
+    }
+  }
+}));
+
+---
+
+// frontend/src/store/useSettingsStore.ts
+import { create } from 'zustand';
+import i18n from '../i18n';
+
+interface SettingsState {
+  theme: 'light' | 'dark';
+  language: 'pt-BR' | 'en-US';
+  setTheme: (theme: 'light' | 'dark') => void;
+  setLanguage: (lang: 'pt-BR' | 'en-US') => void;
+}
+
+export const useSettingsStore = create<SettingsState>((set) => ({
+  theme: (localStorage.getItem('theme') as 'light' | 'dark') || 'dark',
+  language: (localStorage.getItem('language') as 'pt-BR' | 'en-US') || 'pt-BR',
+  setTheme: (theme) => {
+    localStorage.setItem('theme', theme);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    set({ theme });
+  },
+  setLanguage: (language) => {
+    localStorage.setItem('language', language);
+    i18n.changeLanguage(language);
+    set({ language });
+  }
+}));

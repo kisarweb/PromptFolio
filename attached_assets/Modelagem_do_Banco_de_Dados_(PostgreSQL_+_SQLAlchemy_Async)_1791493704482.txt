@@ -1,0 +1,128 @@
+# backend/models/database_models.py
+import enum
+from datetime import datetime
+from typing import List, Optional, Dict, Any
+from sqlalchemy import String, Integer, ForeignKey, Boolean, Text, DateTime, Enum, JSON
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+class Base(DeclarativeBase):
+    pass
+
+class StorageProviderEnum(str, enum.Enum):
+    GOOGLE_DRIVE = "google_drive"
+    CLOUDFLARE_R2 = "cloudflare_r2"
+    AWS_S3 = "aws_s3"
+
+class MediaModalitiesEnum(str, enum.Enum):
+    IMAGE = "image"
+    VIDEO = "video"
+    AUDIO = "audio"
+    TEXT = "text"
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    full_name: Mapped[Optional[str]] = mapped_column(String(255))
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # OAuth Tokens (Armazenados criptografados em produção via Fernet)
+    google_access_token: Mapped[Optional[str]] = mapped_column(Text)
+    google_refresh_token: Mapped[Optional[str]] = mapped_column(Text)
+    token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # Relationships
+    storage_configs: Mapped[List["StorageConfig"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    prompts: Mapped[List["Prompt"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    chats: Mapped[List["ChatSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    media_outputs: Mapped[List["MediaOutput"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+class StorageConfig(Base):
+    __tablename__ = "storage_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    provider: Mapped[StorageProviderEnum] = mapped_column(Enum(StorageProviderEnum), nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Campo JSON criptografado contendo chaves, segredos, endpoints e configurações de bucket
+    encrypted_credentials: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    root_folder_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) # ID da pasta raiz no GDrive
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="storage_configs")
+
+class Agent(Base):
+    __tablename__ = "agents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_system_base: Mapped[bool] = mapped_column(Boolean, default=False) # Se True, visível para todos
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    chats: Mapped[List["ChatSession"]] = relationship(back_populates="locked_agent")
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    locked_agent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("agents.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(255), default="Nova conversa")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="chats")
+    locked_agent: Mapped[Optional["Agent"]] = relationship(back_populates="chats")
+    messages: Mapped[List["ChatMessage"]] = relationship(back_populates="session", cascade="all, delete-orphan")
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False) # user, assistant, system
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    session: Mapped["ChatSession"] = relationship(back_populates="messages")
+
+class Prompt(Base):
+    __tablename__ = "prompts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    raw_content: Mapped[str] = mapped_column(Text, nullable=False) # Ex: "Gere uma imagem de {{sujeito}} estilo {{estilo}}"
+    variables: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict) # Lista extraída de variáveis: ["sujeito", "estilo"]
+    category: Mapped[str] = mapped_column(String(100), nullable=False)
+    folder: Mapped[Optional[str]] = mapped_column(String(100))
+    tags: Mapped[List[str]] = mapped_column(JSON, default=list)
+    modality: Mapped[MediaModalitiesEnum] = mapped_column(Enum(MediaModalitiesEnum), nullable=False)
+    suggested_mcp: Mapped[Optional[str]] = mapped_column(String(100))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="prompts")
+    media_outputs: Mapped[List["MediaOutput"]] = relationship(back_populates="origin_prompt")
+
+class MediaOutput(Base):
+    __tablename__ = "media_outputs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    prompt_id: Mapped[Optional[int]] = mapped_column(ForeignKey("prompts.id", ondelete="SET NULL"), nullable=True)
+    modality: Mapped[MediaModalitiesEnum] = mapped_column(Enum(MediaModalitiesEnum), nullable=False)
+    local_cache_url: Mapped[str] = mapped_column(Text, nullable=False) # URL temporária no servidor backend
+    cloud_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Link público/privado do bucket/drive
+    saved_storage_provider: Mapped[StorageProviderEnum] = mapped_column(Enum(StorageProviderEnum), nullable=False)
+    storage_path_reference: Mapped[str] = mapped_column(Text, nullable=False) # Caminho físico/ID do arquivo salvo
+    meta_data: Mapped[Dict[str, Any]] = mapped_column(JSON, default=dict) # Resolução, Latência, custo, etc.
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="media_outputs")
+    origin_prompt: Mapped[Optional["Prompt"]] = relationship(back_populates="media_outputs")

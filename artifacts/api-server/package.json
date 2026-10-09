@@ -1,0 +1,9 @@
+{
+  "name": "@workspace/api-server",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "python3 -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --reload --reload-dir app --proxy-headers --forwarded-allow-ips='*'",
+    "start": "python3 -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --proxy-headers --forwarded-allow-ips='*'"
+  }
+}

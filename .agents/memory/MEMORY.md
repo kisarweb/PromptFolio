@@ -1,0 +1,1 @@
+- [Backend runtime quirks](backend-runtime.md) — FastAPI replaces Express; SQLAlchemy async needs greenlet; verified built-in AI models via proxy.

@@ -1,0 +1,132 @@
+# backend/routers/builder.py
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from backend.database import get_db
+from backend.models.database_models import ChatSession, ChatMessage
+
+router = APIRouter(prefix="/api/builder", tags=["Builder"])
+
+@router.post("/chat/{session_id}/message")
+async def send_message(
+    session_id: int, 
+    content: str, 
+    agent_id_init: int = None, 
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Envia uma mensagem no chat do construtor aplicando a Trava Estrita de Agente (Anti-Alucinação).
+    """
+    result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Sessão de chat não encontrada.")
+
+    # Verifica se existem mensagens anteriores na sessão
+    msg_check = await db.execute(select(ChatMessage).where(ChatMessage.session_id == session_id))
+    has_messages = msg_check.scalars().first() is not None
+
+    if not has_messages:
+        if not agent_id_init:
+            raise HTTPException(status_code=400, detail="Você precisa selecionar um agente para iniciar a conversa.")
+        # Trava o agente permanentemente na primeira mensagem enviada
+        session.locked_agent_id = agent_id_init
+        await db.commit()
+    else:
+        # Se já possui mensagens, ignora qualquer tentativa do frontend de enviar outro agent_id
+        pass
+
+    # Adiciona a mensagem do Usuário
+    user_msg = ChatMessage(session_id=session_id, role="user", content=content)
+    db.add(user_msg)
+    await db.commit()
+
+    # O fluxo do backend chama o conector MCP configurado com base no prompt do locked_agent_id
+    # ... Processamento LLM / MCP Aqui ...
+    
+    ai_response_text = f"Resposta processada pelo Agente especialista de ID {session.locked_agent_id}."
+    ai_msg = ChatMessage(session_id=session_id, role="assistant", content=ai_response_text)
+    db.add(ai_msg)
+    await db.commit()
+    
+    return {"status": "success", "response": ai_response_text, "locked_agent_id": session.locked_agent_id}
+
+---
+
+# backend/routers/delivery.py
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from backend.database import get_db
+from backend.models.database_models import StorageConfig, MediaOutput, Prompt
+from backend.services.storage_manager import StorageManager
+
+router = APIRouter(prefix="/api/delivery", tags=["Delivery Workspace"])
+
+@router.post("/execute/{prompt_id}")
+async def execute_delivery(
+    prompt_id: int, 
+    variables_payload: dict, 
+    current_user_id: int, 
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Executa o Prompt publicado injetando variáveis, gerando o ativo digital,
+    e realizando o Auto-Save imediato em background na nuvem padrão configurada.
+    """
+    prompt_res = await db.execute(select(Prompt).where(Prompt.id == prompt_id))
+    prompt = prompt_res.scalar_one_or_none()
+    if not prompt:
+        raise HTTPException(status_code=404, detail="Prompt não encontrado.")
+
+    # Constrói o texto injetando as variáveis passadas pelo formulário dinâmico
+    final_prompt_text = prompt.raw_content
+    for key, value in variables_payload.items():
+        final_prompt_text = final_prompt_text.replace(f"{{{{{key}}}}}", str(value))
+
+    # Chamada fictícia de execução de engine MCP de mídia (Ex: Google Nano Banana 2 ou Runway)
+    # mock_media_bytes = await engine_mcp.generate(prompt.modality, final_prompt_text)
+    mock_media_bytes = b"fake_binary_media_content"
+    mock_filename = f"gen_{prompt_id}_output.png" if prompt.modality == "image" else f"gen_{prompt_id}_output.mp4"
+
+    # Resgata o Storage ativo por padrão do usuário
+    storage_res = await db.execute(
+        select(StorageConfig).where(StorageConfig.user_id == current_user_id, StorageConfig.is_default == True)
+    )
+    active_storage = storage_res.scalar_one_or_none()
+    if not active_storage:
+        raise HTTPException(status_code=400, detail="Nenhum armazenamento padrão configurado.")
+
+    # Envia de forma integrada e automática para a Nuvem correspondente
+    cloud_result = await StorageManager.upload_file(
+        config=active_storage,
+        file_data=mock_media_bytes,
+        filename=mock_filename,
+        modality=prompt.modality,
+        category=prompt.category
+    )
+
+    # Registra o histórico da entrega associada
+    output_entry = MediaOutput(
+        user_id=current_user_id,
+        prompt_id=prompt.id,
+        modality=prompt.modality,
+        local_cache_url=f"/static/cache/{mock_filename}",
+        cloud_url=cloud_result["cloud_url"],
+        saved_storage_provider=cloud_result["provider"],
+        storage_path_reference=cloud_result["reference"]
+    )
+    db.add(output_entry)
+    await db.commit()
+
+    return {
+        "status": "success",
+        "modality": prompt.modality,
+        "local_cache_url": output_entry.local_cache_url,
+        "cloud_url": output_entry.cloud_url,
+        "saved_in": output_entry.saved_storage_provider.value
+    }
+

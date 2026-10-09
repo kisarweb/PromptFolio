@@ -1,0 +1,20 @@
+# backend/crypto.py
+import os
+import json
+from typing import Dict, Any
+from cryptography.fernet import Fernet
+from backend.config import settings
+
+# Certifique-se de definir BYOK_SECRET_KEY no arquivo .env (chave gerada via Fernet.generate_key())
+_fernet = Fernet(settings.BYOK_SECRET_KEY.encode())
+
+def encrypt_data(data: Dict[str, Any]) -> str:
+    """Criptografa um dicionário Python contendo chaves de API sensíveis."""
+    json_str = json.dumps(data)
+    encrypted_bytes = _fernet.encrypt(json_str.encode())
+    return encrypted_bytes.decode()
+
+def decrypt_data(encrypted_str: str) -> Dict[str, Any]:
+    """Descriptografa strings criptografadas do banco de dados retornando o dicionário original."""
+    decrypted_bytes = _fernet.decrypt(encrypted_str.encode())
+    return json.loads(decrypted_bytes.decode())

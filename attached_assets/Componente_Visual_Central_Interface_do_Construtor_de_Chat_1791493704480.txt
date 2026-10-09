@@ -1,0 +1,80 @@
+// frontend/src/components/builder/BuilderChat.tsx
+import React, { useState } from 'react';
+import { useChatStore } from '../../store/useChatStore';
+import { useTranslation } from 'react-i18next';
+import { Lock, Send, Award, CloudLightning } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+
+export const BuilderChat: React.FC = () => {
+  const { t } = useTranslation();
+  const { messages, lockedAgentId, sendMessage, initializeSession, isSending } = useChatStore();
+  const [inputText, setInputText] = useState('');
+  const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
+
+  const handleSend = () => {
+    if (!inputText.trim()) return;
+    if (!lockedAgentId && selectedAgent) {
+      initializeSession(selectedAgent).then(() => {
+        sendMessage(inputText);
+        setInputText('');
+      });
+    } else {
+      sendMessage(inputText);
+      setInputText('');
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-slate-950 text-white p-4">
+      {/* Banner de Trava de Agente */}
+      {lockedAgentId ? (
+        <div className="flex items-center gap-2 p-3 bg-indigo-950 border border-indigo-500/30 rounded-lg text-indigo-200 mb-4 text-sm animate-pulse">
+          <Lock className="w-4 h-4 text-indigo-400" />
+          <span>{t('builder.lock_banner')} (Agent #{lockedAgentId})</span>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <label className="block text-sm font-medium mb-1 text-slate-400">{t('builder.select_agent')}</label>
+          <select 
+            className="w-full bg-slate-900 border border-slate-700 rounded-md p-2 text-white"
+            onChange={(e) => setSelectedAgent(Number(e.target.value))}
+            defaultValue=""
+          >
+            <option value="" disabled>-- Selecione --</option>
+            <option value="1">Meta-Agente Construtor de Imagens</option>
+            <option value="2">Especialista em Prompts Textuais Estruturados</option>
+          </select>
+        </div>
+      )}
+
+      {/* Grid / Display de Mensagens */}
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+        {messages.map((msg, i) => (
+          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <Card className={`p-3 max-w-xl border none-border ${msg.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-100'}`}>
+              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+            </Card>
+          </div>
+        ))}
+      </div>
+
+      {/* Caixa de Entrada */}
+      <div className="flex gap-2 items-center">
+        <textarea
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Digite as especificações do prompt ou comportamento do agente..."
+          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-sm text-white resize-none h-12 focus:outline-none focus:border-indigo-500"
+        />
+        <Button 
+          onClick={handleSend} 
+          disabled={isSending || (!lockedAgentId && !selectedAgent)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 px-4"
+        >
+          <Send className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+};

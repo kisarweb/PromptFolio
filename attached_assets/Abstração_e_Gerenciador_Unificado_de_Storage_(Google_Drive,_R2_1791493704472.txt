@@ -1,0 +1,77 @@
+# backend/services/storage_manager.py
+import io
+from typing import BinaryIO
+from backend.models.database_models import StorageProviderEnum, StorageConfig
+from backend.crypto import decrypt_data
+import boto3
+from botocore.client import Config
+
+class StorageManager:
+    @staticmethod
+    async def upload_file(
+        config: StorageConfig, 
+        file_data: bytes, 
+        filename: str, 
+        modality: str, 
+        category: str,
+        user_access_token: str = None
+    ) -> dict:
+        """
+        Direciona o arquivo para o storage selecionado com base no objeto de configuração do banco de dados.
+        """
+        path_prefix = f"PromptFolio/{modality.capitalize()}/{category}"
+        
+        if config.provider == StorageProviderEnum.GOOGLE_DRIVE:
+            return await StorageManager._upload_to_google_drive(config, file_data, filename, path_prefix, user_access_token)
+        
+        elif config.provider in [StorageProviderEnum.CLOUDFLARE_R2, StorageProviderEnum.AWS_S3]:
+            return await StorageManager._upload_to_s3_compatible(config, file_data, filename, path_prefix)
+            
+        raise ValueError("Provedor de armazenamento desconhecido.")
+
+    @staticmethod
+    async def _upload_to_google_drive(config: StorageConfig, file_data: bytes, filename: str, path_prefix: str, access_token: str) -> dict:
+        # Mock de upload via API REST v3 do Google Drive usando httpx assíncrono
+        # Em produção, realiza o parse do path_prefix criando as subpastas em cadeia no GDrive e salva o file_data.
+        # Retorna o ID do arquivo gerado e o link webViewLink padrão.
+        return {
+            "provider": StorageProviderEnum.GOOGLE_DRIVE,
+            "reference": f"gdrive_file_id_mock_{filename}",
+            "cloud_url": f"https://google.com"
+        }
+
+    @staticmethod
+    async def _upload_to_s3_compatible(config: StorageConfig, file_data: bytes, filename: str, path_prefix: str) -> dict:
+        creds = decrypt_data(config.encrypted_credentials)
+        
+        # Inicia cliente customizado para S3 ou R2 usando endpoints dinâmicos
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=creds.get('access_key_id'),
+            aws_secret_access_key=creds.get('secret_access_key'),
+            endpoint_url=creds.get('endpoint_url'), # Obrigatório para Cloudflare R2
+            config=Config(signature_version='s3v4')
+        )
+        
+        full_key = f"{path_prefix}/{filename}"
+        file_obj = io.BytesIO(file_data)
+        
+        # Executa em executor thread pool devido ao comportamento síncrono do boto3
+        import asyncio
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, 
+            s3_client.upload_fileobj, 
+            file_obj, 
+            creds.get('bucket_name'), 
+            full_key
+        )
+        
+        public_url = creds.get('public_url', '').rstrip('/')
+        cloud_url = f"{public_url}/{full_key}" if public_url else f"{creds.get('endpoint_url')}/{creds.get('bucket_name')}/{full_key}"
+        
+        return {
+            "provider": config.provider,
+            "reference": full_key,
+            "cloud_url": cloud_url
+        }

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "PromptFolio"
+description = "PromptFolio is a bilingual (PT-BR/EN-US) prompt engineering platform with a Builder Studio (agent-locked chats to design agents and prompts, Save & Publish review), an Executor Studio with image/video/audio/text delivery tabs and automatic cloud saving (Google Drive by default, Cloudflare R2 or AWS S3), a categorized catalog, settings for MCP connectors and storage, and in-app cloud setup tutorials."
+version = "1.0.0"
+id = "artifacts/promptfolio"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25976
+
+[services.development]
+run = "pnpm --filter @workspace/promptfolio run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/promptfolio", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/promptfolio/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25976"
+BASE_PATH = "/"
