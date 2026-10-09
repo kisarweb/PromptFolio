@@ -23,27 +23,18 @@ GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
 ]
 
-# Built-in engines. Inside Replit they go through the Replit AI Integrations proxy; anywhere else (e.g. Railway)
-# set OPENAI_API_KEY / GEMINI_API_KEY and the official APIs are called directly.
-_DIRECT_OPENAI_KEY = os.environ.get("OPENAI_API_KEY", "")
-_DIRECT_GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-if _DIRECT_OPENAI_KEY:
-    OPENAI_API_KEY, OPENAI_BASE_URL = _DIRECT_OPENAI_KEY, ""
-else:
-    OPENAI_API_KEY = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY", "")
-    OPENAI_BASE_URL = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL", "")
-if _DIRECT_GEMINI_KEY:
-    GEMINI_API_KEY, GEMINI_BASE_URL = _DIRECT_GEMINI_KEY, ""
-else:
-    GEMINI_API_KEY = os.environ.get("AI_INTEGRATIONS_GEMINI_API_KEY", "")
-    GEMINI_BASE_URL = os.environ.get("AI_INTEGRATIONS_GEMINI_BASE_URL", "")
+# Built-in engines exist only where the platform provides an AI proxy (Replit AI Integrations, development).
+# Everywhere else each user brings their own OpenAI / Gemini keys in Settings > AI connectors.
+OPENAI_BASE_URL = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL", "")
+OPENAI_API_KEY = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY", "")
+GEMINI_BASE_URL = os.environ.get("AI_INTEGRATIONS_GEMINI_BASE_URL", "")
+GEMINI_API_KEY = os.environ.get("AI_INTEGRATIONS_GEMINI_API_KEY", "")
 
-_OPENAI_DIRECT = bool(_DIRECT_OPENAI_KEY)
-BUILTIN_CHAT_MODEL = os.environ.get("BUILTIN_CHAT_MODEL") or ("gpt-5" if _OPENAI_DIRECT else "gpt-5.6-terra")
-BUILTIN_FAST_MODEL = os.environ.get("BUILTIN_FAST_MODEL") or ("gpt-5-mini" if _OPENAI_DIRECT else "gpt-5.6-luna")
-BUILTIN_IMAGE_MODEL = os.environ.get("BUILTIN_IMAGE_MODEL") or "gemini-2.5-flash-image"
-BUILTIN_OPENAI_IMAGE_MODEL = os.environ.get("BUILTIN_OPENAI_IMAGE_MODEL") or "gpt-image-1"
-BUILTIN_AUDIO_MODEL = os.environ.get("BUILTIN_AUDIO_MODEL") or "gpt-audio"
+BUILTIN_CHAT_MODEL = "gpt-5.6-terra"
+BUILTIN_FAST_MODEL = "gpt-5.6-luna"
+BUILTIN_IMAGE_MODEL = "gemini-2.5-flash-image"
+BUILTIN_OPENAI_IMAGE_MODEL = "gpt-image-1"
+BUILTIN_AUDIO_MODEL = "gpt-audio"
 
 MEDIA_DIR = Path(os.environ.get("MEDIA_CACHE_DIR", str(SERVER_DIR / ".media_cache")))
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)

@@ -884,12 +884,15 @@ components:
         createdAt: { type: string, format: date-time }
     SessionInfo:
       type: object
-      required: [authenticated, googleOAuthConfigured, googleLoginUrl, demoLoginEnabled]
+      required: [authenticated, googleOAuthConfigured, googleLoginUrl, demoLoginEnabled, builtinAiAvailable]
       properties:
         authenticated: { type: boolean }
         demoLoginEnabled:
           type: boolean
           description: Whether the shared "Local Demo Login" account is available (off in production)
+        builtinAiAvailable:
+          type: boolean
+          description: Whether a platform AI engine exists as fallback (Replit development only); otherwise every user needs their own keys
         user:
           oneOf:
             - $ref: "#/components/schemas/User"

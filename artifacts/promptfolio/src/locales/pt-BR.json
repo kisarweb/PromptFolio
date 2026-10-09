@@ -292,8 +292,7 @@
     "scope": "Escopo",
     "addCategory": "Adicionar categoria",
     "mcpTitle": "Conectores de IA",
-    "mcpBody": "Conecte provedores de modelos ou seu próprio servidor MCP. Chaves são somente escrita.",
-    "builtin": "Um motor de IA embutido está sempre disponível para chat, texto e imagem, mesmo sem chaves.",
+    "mcpBody": "Cada usuário usa as próprias chaves de IA. Cadastre sua chave da OpenAI e/ou do Google Gemini: elas são usadas no chat do Builder, na documentação dos campos e nas gerações de texto, imagem e voz. Para vídeo, use Runway ou Google (Veo). As chaves ficam criptografadas e nunca são exibidas de novo.",
     "connect": "Conectar",
     "connected": "Conectado",
     "apiKey": "Chave de API",
@@ -301,7 +300,7 @@
     "endpoint": "URL do endpoint (SSE/HTTP)",
     "headers": "Cabeçalhos de autenticação",
     "headersHint": "Um por linha: Nome-Cabecalho: valor",
-    "model": "Modelo padrão",
+    "model": "Modelo preferido (opcional)",
     "testOk": "Conexão funcionando",
     "testFail": "Falha na conexão",
     "mcpProviders": {
@@ -351,7 +350,12 @@
     "testSave": "Testar Conexão e Salvar",
     "configured": "Configurado",
     "notConfigured": "Não configurado",
-    "activated": "Armazenamento ativo atualizado"
+    "activated": "Armazenamento ativo atualizado",
+    "keysOk": "Sua chave de IA está ativa: o chat do Builder, a documentação dos campos e as gerações usam a sua conta.",
+    "keysMissing": "Você ainda não cadastrou uma chave de IA. Conecte a OpenAI ou o Google Gemini abaixo para usar o chat do Builder e gerar conteúdo.",
+    "keysMissingDev": "Neste ambiente de desenvolvimento há um motor de IA embutido de reserva. Em produção, cada usuário precisa cadastrar a própria chave da OpenAI ou do Gemini, então conecte a sua abaixo.",
+    "modelAuto": "Automático",
+    "modelHint": "Deixe em branco para o app escolher o modelo certo para cada tipo (texto, imagem, voz, vídeo). Um modelo informado aqui só é usado no tipo a que ele pertence."
   },
   "tutorials": {
     "title": "Tutoriais",

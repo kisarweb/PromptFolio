@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import current_user
 from ..db import get_db
+from ..engines import assistant_engine
 from ..models import Agent, Category, GeneratedAsset, McpConnection, Prompt, User
 from .. import variables as var_docs
 from ..schemas import CategoryInput, ImportInput, PromptUpdate, SuggestVariablesInput
@@ -294,10 +295,11 @@ async def backup_prompts(user: User = Depends(current_user), db: AsyncSession = 
 
 
 @router.post("/prompts/suggest-variables")
-async def suggest_variables(body: SuggestVariablesInput, user: User = Depends(current_user)):
+async def suggest_variables(body: SuggestVariablesInput, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
     """AI-written purpose, examples and required flag for every {{variable}}; existing non-empty fields are kept."""
     existing = [v.model_dump() for v in body.variables] if body.variables else []
-    return {"variables": await var_docs.suggest_docs(body.promptTemplate, user.language, existing)}
+    engine = await assistant_engine(db, user)
+    return {"variables": await var_docs.suggest_docs(engine, body.promptTemplate, user.language, existing)}
 
 
 @router.get("/prompts/{id}")

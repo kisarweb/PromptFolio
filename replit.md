@@ -8,7 +8,10 @@ Bilingual (PT/EN) studio to build expert agents and parametrized prompts through
 - `pnpm --filter @workspace/promptfolio run dev` — React/Vite frontend (served at `/`)
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate React Query hooks + Zod from `lib/api-spec/openapi.yaml`
 - Python deps live in root `pyproject.toml` (install via package tooling, not pip)
-- Required env: `DATABASE_URL`, `SESSION_SECRET`, Replit AI Integrations vars (`AI_INTEGRATIONS_OPENAI_*`, `AI_INTEGRATIONS_GEMINI_*`)
+- Required env: `DATABASE_URL` (or `NEON_DATABASE_URL`, which wins; use Neon's direct endpoint, not `-pooler`), `SESSION_SECRET` (must be identical in every environment sharing the DB: it decrypts stored keys/tokens)
+- No server AI keys: each user saves their own OpenAI / Gemini / Runway keys in Settings > AI connectors. Replit AI Integrations vars (`AI_INTEGRATIONS_*`) only add a built-in fallback engine in the Replit dev workspace.
+- `ALLOW_DEMO_LOGIN` (default on in dev, off when `NODE_ENV=production`)
+- Deploy: root `Dockerfile` + `railway.json` (single service; FastAPI serves the built SPA from `STATIC_DIR`; healthcheck `/api/healthz`; `MEDIA_CACHE_DIR` on a volume)
 - Optional env: `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — enables real Google login + Drive. Redirect URI: `https://<domain>/api/auth/google/callback`. Without them the UI offers "Login Demo Local" (Drive uploads are simulated).
 
 ## Stack
@@ -27,7 +30,8 @@ Bilingual (PT/EN) studio to build expert agents and parametrized prompts through
 
 - Express template was replaced by FastAPI at the user's request; the OpenAPI spec still drives frontend codegen.
 - Builder sessions lock to the first agent used (409 on a different agent); publishing again updates the same prompt and bumps `version` when the template changes.
-- Built-in engines (no user key): text GPT, image Nano Banana (Gemini) or GPT Image, audio GPT Audio voice. Video requires a user Runway or Google (Veo) key.
+- BYOK: the user's own connections always win over built-ins. The app's internal AI work (Builder chat, draft metadata, field docs, visual prompt compiling) runs on the user's OpenAI key, else Gemini, else the built-in (dev only); without any key those endpoints return 400 asking for a key in Settings.
+- A connection's saved model is used only for the modality it belongs to (e.g. `gpt-4o` for text, never images); other modalities use per-provider defaults in `PROVIDER_DEFAULT_MODELS` (`ai.py`).
 - Storage credentials only count as configured after a successful write test; a provider can only be activated when configured.
 - Factory agents are global rows (`user_id` null): editable/deactivatable, never deletable.
 - Brand references (`{{referencia_marca_anexa}}`): uploaded/pasted images live in Postgres (`reference_images`, bytea, deduped by sha256 per user, unique `@code`); typed URLs are never stored. Chip "x" only deselects; permanent deletion is in Settings > Referências de Marca (manual, bulk, cleanup with preview, opt-in auto-cleanup every 6 h). Image/video/text engines receive the pixels; audio gets only the text label.

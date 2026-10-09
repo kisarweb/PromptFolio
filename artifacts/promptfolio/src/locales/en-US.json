@@ -292,8 +292,7 @@
     "scope": "Scope",
     "addCategory": "Add category",
     "mcpTitle": "AI connectors",
-    "mcpBody": "Connect model providers or your own MCP server. Keys are write-only.",
-    "builtin": "A built-in AI engine is always available for chat, text and image, even without keys.",
+    "mcpBody": "Every user brings their own AI keys. Add your OpenAI and/or Google Gemini key: they power the Builder chat, field documentation and text, image and voice generation. For video, use Runway or Google (Veo). Keys are encrypted and never shown again.",
     "connect": "Connect",
     "connected": "Connected",
     "apiKey": "API key",
@@ -301,7 +300,7 @@
     "endpoint": "Endpoint URL (SSE/HTTP)",
     "headers": "Auth headers",
     "headersHint": "One per line: Header-Name: value",
-    "model": "Default model",
+    "model": "Preferred model (optional)",
     "testOk": "Connection works",
     "testFail": "Connection failed",
     "mcpProviders": {
@@ -351,7 +350,12 @@
     "testSave": "Test Connection & Save",
     "configured": "Configured",
     "notConfigured": "Not configured",
-    "activated": "Active storage updated"
+    "activated": "Active storage updated",
+    "keysOk": "Your AI key is active: the Builder chat, field documentation and generations run on your account.",
+    "keysMissing": "You have not added an AI key yet. Connect OpenAI or Google Gemini below to use the Builder chat and generate content.",
+    "keysMissingDev": "This development environment has a built-in fallback AI engine. In production every user must add their own OpenAI or Gemini key, so connect yours below.",
+    "modelAuto": "Automatic",
+    "modelHint": "Leave blank to let the app pick the right model for each type (text, image, voice, video). A model set here is only used for the type it belongs to."
   },
   "tutorials": {
     "title": "Tutorials",

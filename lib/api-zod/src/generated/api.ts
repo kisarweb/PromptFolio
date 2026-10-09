@@ -22,6 +22,7 @@ export const HealthCheckResponse = zod.object({
 export const GetSessionResponse = zod.object({
   "authenticated": zod.boolean(),
   "demoLoginEnabled": zod.boolean().describe('Whether the shared "Local Demo Login" account is available (off in production)'),
+  "builtinAiAvailable": zod.boolean().describe('Whether a platform AI engine exists as fallback (Replit development only); otherwise every user needs their own keys'),
   "user": zod.union([zod.object({
   "id": zod.string(),
   "email": zod.string(),
@@ -45,6 +46,7 @@ export const GetSessionResponse = zod.object({
 export const DemoLoginResponse = zod.object({
   "authenticated": zod.boolean(),
   "demoLoginEnabled": zod.boolean().describe('Whether the shared "Local Demo Login" account is available (off in production)'),
+  "builtinAiAvailable": zod.boolean().describe('Whether a platform AI engine exists as fallback (Replit development only); otherwise every user needs their own keys'),
   "user": zod.union([zod.object({
   "id": zod.string(),
   "email": zod.string(),

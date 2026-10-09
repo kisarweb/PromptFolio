@@ -1,7 +1,7 @@
 """Generation engines.
 
-Built-in engines use Replit AI Integrations (OpenAI + Gemini proxies, no user key needed).
-User engines come from encrypted MCP connections (BYOK): OpenAI, Google Gemini/Veo, Runway.
+User engines come from encrypted connections (BYOK) saved in Settings: OpenAI, Google Gemini/Veo, Runway.
+Built-in engines (Replit AI Integrations proxy) exist only in the Replit development environment.
 """
 import asyncio
 import base64
@@ -32,7 +32,7 @@ class EngineError(Exception):
 _builtin_openai = AsyncOpenAI(api_key=config.OPENAI_API_KEY or "missing", base_url=config.OPENAI_BASE_URL or None)
 _builtin_gemini = genai.Client(
     api_key=config.GEMINI_API_KEY or "missing",
-    http_options=gtypes.HttpOptions(api_version="", base_url=config.GEMINI_BASE_URL) if config.GEMINI_BASE_URL else None,
+    http_options=gtypes.HttpOptions(api_version="", base_url=config.GEMINI_BASE_URL or None),
 )
 
 BUILTIN_TEXT = "builtin"
@@ -67,11 +67,11 @@ class Engine:
 
 
 def builtin_available() -> bool:
-    return bool(config.OPENAI_API_KEY)
+    return bool(config.OPENAI_BASE_URL and config.OPENAI_API_KEY)
 
 
 def builtin_gemini_available() -> bool:
-    return bool(config.GEMINI_API_KEY)
+    return bool(config.GEMINI_BASE_URL and config.GEMINI_API_KEY)
 
 
 # ------------------------------------------------------------------ capability matrix
@@ -90,28 +90,62 @@ PROVIDER_LABELS = {
 }
 
 
+NO_KEY_REASON = "Add your own OpenAI or Google Gemini API key in Settings > AI connectors."
+NO_VIDEO_REASON = "Video needs your own Runway or Google (Veo) API key in Settings > AI connectors."
+
+
 def builtin_engines(modality: str) -> list[dict[str, Any]]:
-    if modality == "text":
-        return [_eng(BUILTIN_TEXT, "PromptFolio AI · GPT (built-in)", builtin_available(), None if builtin_available() else "Built-in AI is not provisioned")]
+    """Built-in options that are actually provisioned in this environment (none outside Replit)."""
+    out: list[dict[str, Any]] = []
+    if modality == "text" and builtin_available():
+        out.append(_eng(BUILTIN_TEXT, "PromptFolio AI · GPT (built-in)", True, None))
     if modality == "image":
-        return [
-            _eng(BUILTIN_IMAGE_GEMINI, "PromptFolio AI · Nano Banana (built-in)", builtin_gemini_available(), None if builtin_gemini_available() else "Built-in Gemini is not provisioned"),
-            _eng(BUILTIN_IMAGE_OPENAI, "PromptFolio AI · GPT Image (built-in)", builtin_available(), None if builtin_available() else "Built-in OpenAI is not provisioned"),
-        ]
-    if modality == "audio":
-        return [_eng(BUILTIN_AUDIO, "PromptFolio AI · GPT Audio voice (built-in)", builtin_available(), None if builtin_available() else "Built-in AI is not provisioned")]
-    return [
-        _eng(
-            "builtin",
-            "PromptFolio AI (built-in)",
-            False,
-            "Built-in video generation is not available. Add a Runway or Google (Veo) key in Settings > AI MCP Connectors.",
-        )
-    ]
+        if builtin_gemini_available():
+            out.append(_eng(BUILTIN_IMAGE_GEMINI, "PromptFolio AI · Nano Banana (built-in)", True, None))
+        if builtin_available():
+            out.append(_eng(BUILTIN_IMAGE_OPENAI, "PromptFolio AI · GPT Image (built-in)", True, None))
+    if modality == "audio" and builtin_available():
+        out.append(_eng(BUILTIN_AUDIO, "PromptFolio AI · GPT Audio voice (built-in)", True, None))
+    return out
+
+
+def missing_engine_placeholder(modality: str) -> dict[str, Any]:
+    return _eng("builtin", "PromptFolio AI", False, NO_VIDEO_REASON if modality == "video" else NO_KEY_REASON)
 
 
 def _eng(eid: str, label: str, available: bool, reason: str | None, source: str = "builtin", provider: str | None = None) -> dict[str, Any]:
     return {"id": eid, "label": label, "source": source, "providerType": provider, "available": available, "reason": reason}
+
+
+# One connection serves several modalities; its saved model is used only for the modality it belongs to.
+PROVIDER_DEFAULT_MODELS: dict[str, dict[str, str]] = {
+    "openai_chatgpt": {"text": "gpt-5-mini", "image": "gpt-image-1", "audio": "gpt-4o-mini-tts"},
+    "google_nano_banana": {"text": "gemini-2.5-flash", "image": "gemini-2.5-flash-image", "audio": "gemini-2.5-flash-preview-tts", "video": "veo-3.0-generate-001"},
+    "runway": {"image": "gen4_image", "video": "gen4.5"},
+}
+
+
+def _model_kind(provider: str | None, model: str) -> str | None:
+    m = model.lower()
+    if provider == "openai_chatgpt":
+        if m.startswith(("gpt-image", "dall-e")):
+            return "image"
+        return "audio" if "tts" in m else "text"
+    if provider == "google_nano_banana":
+        if m.startswith("veo"):
+            return "video"
+        if "tts" in m:
+            return "audio"
+        return "image" if "image" in m else "text"
+    if provider == "runway":
+        return "image" if "image" in m else "video"
+    return None
+
+
+def model_for(engine: "Engine", modality: str) -> str:
+    if engine.default_model and _model_kind(engine.provider_type, engine.default_model) == modality:
+        return engine.default_model
+    return PROVIDER_DEFAULT_MODELS.get(engine.provider_type or "", {}).get(modality) or engine.default_model or ""
 
 
 def mcp_engine_option(conn_id: str, name: str, provider_type: str, is_active: bool, has_key: bool, modality: str) -> dict[str, Any] | None:
@@ -138,7 +172,7 @@ async def chat_complete(engine: Engine, system: str, messages: list[dict[str, st
     try:
         if engine.source == "builtin" or engine.provider_type == "openai_chatgpt":
             client = _openai_for(engine)
-            model = config.BUILTIN_CHAT_MODEL if engine.source == "builtin" else (engine.default_model or "gpt-4o-mini")
+            model = config.BUILTIN_CHAT_MODEL if engine.source == "builtin" else model_for(engine, "text")
             kwargs: dict[str, Any] = {}
             if temperature is not None and not model.startswith(("gpt-5", "o1", "o3", "o4")):
                 kwargs["temperature"] = temperature
@@ -164,7 +198,7 @@ async def chat_complete(engine: Engine, system: str, messages: list[dict[str, st
             if images and contents:
                 contents[-1].parts = _gemini_image_parts(images) + list(contents[-1].parts or [])
             resp = await client.aio.models.generate_content(
-                model=engine.default_model or "gemini-2.5-flash",
+                model=model_for(engine, "text"),
                 contents=contents,
                 config=gtypes.GenerateContentConfig(system_instruction=system, temperature=temperature),
             )
@@ -179,9 +213,23 @@ async def chat_complete(engine: Engine, system: str, messages: list[dict[str, st
     raise EngineError(f"{engine.label} cannot generate text.", 400)
 
 
-async def json_complete(system: str, user: str) -> str:
-    resp = await _builtin_openai.chat.completions.create(
-        model=config.BUILTIN_FAST_MODEL,
+async def json_complete(engine: Engine, system: str, user: str, smart: bool = False) -> str:
+    """Structured helper calls (metadata, field docs, prompt compiling) run on the user's own text engine."""
+    if engine.source == "builtin":
+        client, model = _builtin_openai, (config.BUILTIN_CHAT_MODEL if smart else config.BUILTIN_FAST_MODEL)
+    elif engine.provider_type == "openai_chatgpt":
+        client, model = _openai_for(engine), model_for(engine, "text")
+    elif engine.provider_type == "google_nano_banana":
+        resp = await genai.Client(api_key=engine.api_key).aio.models.generate_content(
+            model=model_for(engine, "text"),
+            contents=user,
+            config=gtypes.GenerateContentConfig(system_instruction=system, response_mime_type="application/json"),
+        )
+        return resp.text or "{}"
+    else:
+        raise EngineError(f"{engine.label} cannot run text tasks.", 400)
+    resp = await client.chat.completions.create(
+        model=model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         response_format={"type": "json_object"},
     )
@@ -203,7 +251,7 @@ async def generate_text(engine: Engine, prompt: str, language: str, images: RefI
 COMPILE_MIN_CHARS = 600
 
 
-async def compile_visual_prompt(prompt: str, modality: str) -> str | None:
+async def compile_visual_prompt(engine: Engine, prompt: str, modality: str) -> str | None:
     """Return a direct image/video prompt, or None when the input already is one (or compilation fails)."""
     if len(prompt) < COMPILE_MIN_CHARS:
         return None
@@ -219,12 +267,7 @@ async def compile_visual_prompt(prompt: str, modality: str) -> str | None:
         'Answer ONLY with JSON {"kind": "direct"|"assistant", "prompt": "<final prompt, or empty for direct>"}.'
     )
     try:
-        raw = await _builtin_openai.chat.completions.create(
-            model=config.BUILTIN_CHAT_MODEL,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt[:30000]}],
-            response_format={"type": "json_object"},
-        )
-        data = json.loads(raw.choices[0].message.content or "{}")
+        data = json.loads(await json_complete(engine, system, prompt[:30000], smart=True))
     except Exception:
         log.exception("visual prompt compilation failed; sending the template as-is")
         return None
@@ -290,11 +333,11 @@ async def generate_image(engine: Engine, prompt: str, aspect: str, images: RefIm
                 return await _openai_image(_builtin_openai, config.BUILTIN_OPENAI_IMAGE_MODEL, prompt, aspect, images)
             return await _gemini_image(_builtin_gemini, config.BUILTIN_IMAGE_MODEL, prompt, aspect, images)
         if engine.provider_type == "openai_chatgpt":
-            return await _openai_image(_openai_for(engine), engine.default_model or "gpt-image-1", prompt, aspect, images)
+            return await _openai_image(_openai_for(engine), model_for(engine, "image"), prompt, aspect, images)
         if engine.provider_type == "google_nano_banana":
-            return await _gemini_image(genai.Client(api_key=engine.api_key), engine.default_model or "gemini-2.5-flash-image", prompt, aspect, images)
+            return await _gemini_image(genai.Client(api_key=engine.api_key), model_for(engine, "image"), prompt, aspect, images)
         if engine.provider_type == "runway":
-            body: dict[str, Any] = {"promptText": prompt[:1000], "ratio": RUNWAY_IMAGE_RATIOS.get(aspect, "1024:1024"), "model": engine.default_model or "gen4_image"}
+            body: dict[str, Any] = {"promptText": prompt[:1000], "ratio": RUNWAY_IMAGE_RATIOS.get(aspect, "1024:1024"), "model": model_for(engine, "image")}
             if images:
                 body["referenceImages"] = [{"uri": _data_uri(d, m), "tag": f"brand{i + 1}"} for i, (d, m) in enumerate(images[:3])]
             url = await _runway_task(engine, "/text_to_image", body)
@@ -347,12 +390,12 @@ async def generate_audio(engine: Engine, prompt: str, voice: str) -> tuple[bytes
             return base64.b64decode(audio.data), "audio/mpeg"
         if engine.provider_type == "openai_chatgpt":
             client = _openai_for(engine)
-            resp = await client.audio.speech.create(model=engine.default_model or "gpt-4o-mini-tts", voice=voice, input=prompt[:4096])
+            resp = await client.audio.speech.create(model=model_for(engine, "audio"), voice=voice, input=prompt[:4096])
             return resp.content, "audio/mpeg"
         if engine.provider_type == "google_nano_banana":
             client = genai.Client(api_key=engine.api_key)
             resp = await client.aio.models.generate_content(
-                model=engine.default_model or "gemini-2.5-flash-preview-tts",
+                model=model_for(engine, "audio"),
                 contents=prompt,
                 config=gtypes.GenerateContentConfig(
                     response_modalities=["AUDIO"],
@@ -381,7 +424,7 @@ RUNWAY_VIDEO_RATIOS = {"16:9": "1280:720", "9:16": "720:1280", "1:1": "960:960"}
 async def generate_video(engine: Engine, prompt: str, aspect: str, duration: int, images: RefImages | None = None) -> tuple[bytes, str]:
     if engine.source == "builtin":
         raise EngineError(
-            "Built-in video generation is not available. Add a Runway or Google (Veo) API key in Settings > AI MCP Connectors.",
+            NO_VIDEO_REASON,
             400,
         )
     try:
@@ -390,7 +433,7 @@ async def generate_video(engine: Engine, prompt: str, aspect: str, duration: int
                 "promptText": prompt[:1000],
                 "ratio": RUNWAY_VIDEO_RATIOS.get(aspect, "1280:720"),
                 "duration": 10 if duration >= 10 else 5,
-                "model": engine.default_model or "gen4.5",
+                "model": model_for(engine, "video"),
             }
             path = "/text_to_video"
             if images:  # first brand reference becomes the starting frame
@@ -400,7 +443,7 @@ async def generate_video(engine: Engine, prompt: str, aspect: str, duration: int
             return await _download(url, "video/mp4")
         if engine.provider_type == "google_nano_banana":
             client = genai.Client(api_key=engine.api_key)
-            model = engine.default_model or "veo-3.0-generate-001"
+            model = model_for(engine, "video")
             cfg: dict[str, Any] = {"aspect_ratio": "9:16" if aspect == "9:16" else "16:9", "number_of_videos": 1}
             if model.startswith("veo-2"):
                 cfg["duration_seconds"] = max(5, min(8, duration))

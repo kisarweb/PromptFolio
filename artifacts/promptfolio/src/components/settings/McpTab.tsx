@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Pencil, Zap, Bot, KeyRound, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Trash2, Pencil, Zap, Bot, KeyRound, Sparkles, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { SiGoogle } from 'react-icons/si';
 import {
-  useListMcpConnections, useCreateMcpConnection, useUpdateMcpConnection, useDeleteMcpConnection, useTestMcpConnection,
+  useGetSession, useListMcpConnections, useCreateMcpConnection, useUpdateMcpConnection, useDeleteMcpConnection, useTestMcpConnection,
   getListMcpConnectionsQueryKey, getGetDeliveryCapabilitiesQueryKey, getGetDashboardSummaryQueryKey,
   type McpProviderType, type McpConnection, type TestResult,
 } from '@workspace/api-client-react';
@@ -19,12 +19,14 @@ import { useToast } from '@/hooks/use-toast';
 import { apiErrorMessage } from '@/lib/pf';
 import { cn } from '@/lib/utils';
 
-const PROVIDERS: { type: McpProviderType; icon: React.ComponentType<{ className?: string }>; model: string }[] = [
-  { type: 'google_nano_banana', icon: SiGoogle, model: 'gemini-2.5-flash-image' },
-  { type: 'openai_chatgpt', icon: Bot, model: 'gpt-4o' },
-  { type: 'runway', icon: Zap, model: 'gen4_turbo' },
-  { type: 'custom_mcp', icon: Sparkles, model: '' },
+// The model field is optional: blank lets the server pick the right model per modality (text, image, voice, video).
+const PROVIDERS: { type: McpProviderType; icon: React.ComponentType<{ className?: string }> }[] = [
+  { type: 'openai_chatgpt', icon: Bot },
+  { type: 'google_nano_banana', icon: SiGoogle },
+  { type: 'runway', icon: Zap },
+  { type: 'custom_mcp', icon: Sparkles },
 ];
+const TEXT_PROVIDERS: McpProviderType[] = ['openai_chatgpt', 'google_nano_banana'];
 
 type Form = { id?: string; providerType: McpProviderType; name: string; apiKey: string; endpointUrl: string; headers: string; defaultModel: string; isActive: boolean };
 
@@ -33,6 +35,9 @@ export function McpTab() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const conns = useListMcpConnections();
+  const session = useGetSession();
+  const hasOwnKey = (conns.data ?? []).some((c) => c.isActive && !!c.maskedKey && TEXT_PROVIDERS.includes(c.providerType));
+  const builtin = !!session.data?.builtinAiAvailable;
   const create = useCreateMcpConnection();
   const update = useUpdateMcpConnection();
   const del = useDeleteMcpConnection();
@@ -44,7 +49,7 @@ export function McpTab() {
 
   const open = (type: McpProviderType, c?: McpConnection) => setForm(c ? {
     id: c.id, providerType: c.providerType, name: c.name, apiKey: '', endpointUrl: c.endpointUrl ?? '', headers: (c.headerNames ?? []).map((h) => `${h}: `).join('\n'), defaultModel: c.defaultModel ?? '', isActive: c.isActive,
-  } : { providerType: type, name: t(`settings.mcpProviders.${type}.name`), apiKey: '', endpointUrl: '', headers: '', defaultModel: PROVIDERS.find((p) => p.type === type)?.model ?? '', isActive: true });
+  } : { providerType: type, name: t(`settings.mcpProviders.${type}.name`), apiKey: '', endpointUrl: '', headers: '', defaultModel: '', isActive: true });
 
   const save = () => {
     if (!form) return;
@@ -65,7 +70,14 @@ export function McpTab() {
   return (
     <div>
       <div className="mb-4"><h2 className="text-xl font-bold">{t('settings.mcpTitle')}</h2><p className="text-sm text-muted-foreground">{t('settings.mcpBody')}</p></div>
-      <div className="mb-6 flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/8 p-3 text-sm"><Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" />{t('settings.builtin')}</div>
+      {!conns.isLoading && (hasOwnKey ? (
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-success/30 bg-success/10 p-3 text-sm" data-testid="text-ai-keys-ok"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />{t('settings.keysOk')}</div>
+      ) : (
+        <div className={cn('mb-6 flex items-start gap-3 rounded-xl border p-3 text-sm', builtin ? 'border-accent/30 bg-accent/8' : 'border-warning/40 bg-warning/10 text-warning')} data-testid="text-ai-keys-missing">
+          {builtin ? <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+          {t(builtin ? 'settings.keysMissingDev' : 'settings.keysMissing')}
+        </div>
+      ))}
       {conns.isLoading ? <div className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-44" />)}</div> : (
         <div className="grid gap-4 md:grid-cols-2">
           {PROVIDERS.map((p, i) => {
@@ -114,7 +126,7 @@ export function McpTab() {
                 <div><Label>{t('settings.headers')}</Label><Textarea value={form.headers} onChange={(e) => setForm({ ...form, headers: e.target.value })} placeholder="Authorization: Bearer ..." className="mt-1.5 min-h-[70px] font-mono text-xs" data-testid="input-mcp-headers" /><p className="mt-1 text-[11px] text-muted-foreground">{t('settings.headersHint')}</p></div>
               </>}
               <div><Label>{t('settings.apiKey')}</Label><Input type="password" autoComplete="new-password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={form.id ? t('settings.apiKeyKeep') : 'sk-...'} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-key" /></div>
-              <div><Label>{t('settings.model')}</Label><Input value={form.defaultModel} onChange={(e) => setForm({ ...form, defaultModel: e.target.value })} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-model" /></div>
+              <div><Label>{t('settings.model')}</Label><Input value={form.defaultModel} onChange={(e) => setForm({ ...form, defaultModel: e.target.value })} placeholder={t('settings.modelAuto')} className="mt-1.5 font-mono text-sm" data-testid="input-mcp-model" />{form.providerType !== 'custom_mcp' && <p className="mt-1 text-[11px] text-muted-foreground">{t('settings.modelHint')}</p>}</div>
               <div className="flex items-center justify-between"><Label>{t('common.active')}</Label><Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} data-testid="switch-mcp-active-form" /></div>
             </div>
           )}

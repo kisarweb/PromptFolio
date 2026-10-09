@@ -16,7 +16,7 @@ from .. import ai, config
 from .. import references as refs
 from ..auth import current_user
 from ..db import get_db
-from ..engines import capabilities, resolve_engine
+from ..engines import assistant_engine, capabilities, resolve_engine
 from ..models import Category, GeneratedAsset, User
 from ..schemas import ExecuteInput
 from ..seed import slugify
@@ -70,7 +70,8 @@ async def execute(body: ExecuteInput, user: User = Depends(current_user), db: As
     if body.extraInstructions and body.extraInstructions.strip():
         final_prompt = f"{final_prompt}\n\n{body.extraInstructions.strip()}"
     if body.modality in ("image", "video"):
-        compiled = await ai.compile_visual_prompt(final_prompt, body.modality)
+        helper = await assistant_engine(db, user, required=False)
+        compiled = await ai.compile_visual_prompt(helper, final_prompt, body.modality) if helper else None
         if compiled:
             final_prompt = compiled + ("\n\n" + t["usage"] if resolved and attach_pixels and t["usage"] not in compiled else "")
     images = [(r.data, r.mime) for r in resolved if r.data] if attach_pixels else None

@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import config
+from .. import ai, config
 from ..auth import (
     clear_session_cookie,
     current_user,
@@ -40,6 +40,7 @@ def _session_payload(user: User | None) -> dict:
         "googleOAuthConfigured": config.GOOGLE_OAUTH_CONFIGURED,
         "googleLoginUrl": GOOGLE_LOGIN_PATH,
         "demoLoginEnabled": config.ALLOW_DEMO_LOGIN,
+        "builtinAiAvailable": ai.builtin_available() or ai.builtin_gemini_available(),
     }
 
 

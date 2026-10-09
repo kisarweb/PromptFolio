@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import ai
 from ..auth import current_user
 from ..db import get_db
-from ..engines import chat_engine_for_agent
+from ..engines import assistant_engine, chat_engine_for_agent
 from ..models import Agent, ChatMessage, ChatSession, Prompt, User
 from ..schemas import ChatMessageInput, ChatSessionInput, PublishInput
 from .. import variables as var_docs
@@ -163,18 +163,25 @@ async def get_draft(id: str, user: User = Depends(current_user), db: AsyncSessio
     meta: dict = {}
     convo_excerpt = "\n\n".join(f"{m.role.upper()}: {m.content[:1500]}" for m in msgs[-8:])
     lang = ai.LANGUAGE_NAMES.get(user.language, "English")
+    helper = await assistant_engine(db, user, required=False)  # without a key the draft still opens, just without AI metadata
+
     async def documented_variables() -> list[dict]:
         if kind != "prompt":
             return []
+        if helper is None:
+            return merge_variables(content, [])
         try:
-            return await var_docs.suggest_docs(content, user.language)
+            return await var_docs.suggest_docs(helper, content, user.language)
         except Exception:
             log.exception("variable documentation failed; publishing without it")
             return merge_variables(content, [])
 
     docs_task = asyncio.create_task(documented_variables())
     try:
+        if helper is None:
+            raise ai.EngineError(ai.NO_KEY_REASON, 400)
         raw = await ai.json_complete(
+            helper,
             "You extract catalog metadata for a prompt library. Answer ONLY with a JSON object with keys: "
             '"title" (max 60 chars), "description" (1-2 sentences), "tags" (3-6 short lowercase tags), '
             '"targetModality" (one of image, video, audio, text), "suggestedMcpProvider" (one of google_nano_banana, openai_chatgpt, runway or null). '

@@ -102,6 +102,8 @@ export interface SessionInfo {
   authenticated: boolean;
   /** Whether the shared "Local Demo Login" account is available (off in production) */
   demoLoginEnabled: boolean;
+  /** Whether a platform AI engine exists as fallback (Replit development only); otherwise every user needs their own keys */
+  builtinAiAvailable: boolean;
   user?: User | null;
   /** Whether real Google sign-in (and Drive) is configured on the server */
   googleOAuthConfigured: boolean;

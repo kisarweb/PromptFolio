@@ -14,7 +14,7 @@ def is_required(v: dict[str, Any]) -> bool:
     return v.get("required") is not False
 
 
-async def suggest_docs(template: str, language: str, existing: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+async def suggest_docs(engine: "ai.Engine", template: str, language: str, existing: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """Ask the fast model to document every {{variable}} of a prompt. Existing non-empty fields win."""
     names = detect_variables(template)
     by_name = {v.get("name"): v for v in (existing or []) if v.get("name")}
@@ -37,13 +37,15 @@ async def suggest_docs(template: str, language: str, existing: list[dict[str, An
     user = f"Variable names: {json.dumps(names, ensure_ascii=False)}\n\nPrompt template:\n{template[:12000]}"
     suggested: dict[str, dict[str, Any]] = {}
     try:
-        data = json.loads(await ai.json_complete(system, user))
+        data = json.loads(await ai.json_complete(engine, system, user))
         for item in data.get("variables") or []:
             if isinstance(item, dict) and item.get("name") in names:
                 suggested[item["name"]] = item
-    except Exception:
+    except ai.EngineError as exc:
+        raise HTTPException(status_code=502, detail=f"AI engine error: {exc.message}")
+    except Exception as exc:
         log.exception("variable documentation suggestion failed")
-        raise HTTPException(status_code=502, detail="Could not generate field documentation right now. Try again.")
+        raise HTTPException(status_code=502, detail=f"Could not generate field documentation right now: {str(exc)[:200]}")
 
     result = []
     for name in names:

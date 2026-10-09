@@ -1,4 +1,4 @@
-"""Resolve which generation engine handles a request (built-in or a user MCP connection)."""
+"""Resolve which engine handles a request: the user's own connections first, built-in (Replit dev only) as fallback."""
 import uuid
 
 from fastapi import HTTPException
@@ -44,6 +44,8 @@ async def capabilities(db: AsyncSession, user: User) -> list[dict]:
             opt = ai.mcp_engine_option(str(c.id), c.name, c.provider_type, c.is_active, bool(c.encrypted_credentials), modality)
             if opt:
                 engines.append(opt)
+        if not any(e["available"] for e in engines):
+            engines.insert(0, ai.missing_engine_placeholder(modality))
         out.append({"modality": modality, "engines": engines})
     return out
 
@@ -64,7 +66,7 @@ async def resolve_engine(db: AsyncSession, user: User, modality: str, engine_id:
         if preferred_mcp_id and str(preferred_mcp_id) in by_id and by_id[str(preferred_mcp_id)]["available"]:
             opt = by_id[str(preferred_mcp_id)]
         if opt is None:
-            ordered = sorted(caps, key=lambda e: 0 if e["source"] == "builtin" else 1)
+            ordered = sorted(caps, key=lambda e: 0 if e["source"] == "mcp" else 1)  # the user's own keys first
             opt = next((e for e in ordered if e["available"]), None)
         if opt is None:
             reason = caps[0].get("reason") if caps else None
@@ -76,10 +78,32 @@ async def resolve_engine(db: AsyncSession, user: User, modality: str, engine_id:
     return engine_from_connection(conn)
 
 
-async def chat_engine_for_agent(db: AsyncSession, user: User, preferred_mcp_id) -> ai.Engine:
-    """Builder chat uses the agent's preferred text-capable connection when usable, else built-in."""
+TEXT_PROVIDERS = ("openai_chatgpt", "google_nano_banana")
+
+
+async def assistant_engine(db: AsyncSession, user: User, preferred_mcp_id=None, required: bool = True) -> ai.Engine | None:
+    """Text engine for the app's own AI work (Builder chat, metadata, field docs, prompt compiling).
+
+    Order: the agent's preferred connection -> the user's OpenAI key -> the user's Gemini key -> built-in (Replit dev only).
+    """
+    usable = [
+        c for c in await user_connections(db, user)
+        if c.is_active and c.encrypted_credentials and c.provider_type in TEXT_PROVIDERS
+    ]
     if preferred_mcp_id:
-        conn = await db.get(McpConnection, preferred_mcp_id)
-        if conn and conn.user_id == user.id and conn.is_active and conn.encrypted_credentials and conn.provider_type in ("openai_chatgpt", "google_nano_banana"):
-            return engine_from_connection(conn)
-    return builtin_engine("text")
+        preferred = next((c for c in usable if str(c.id) == str(preferred_mcp_id)), None)
+        if preferred:
+            return engine_from_connection(preferred)
+    usable.sort(key=lambda c: TEXT_PROVIDERS.index(c.provider_type))
+    if usable:
+        return engine_from_connection(usable[0])
+    if ai.builtin_available():
+        return builtin_engine("text")
+    if required:
+        raise HTTPException(status_code=400, detail=ai.NO_KEY_REASON)
+    return None
+
+
+async def chat_engine_for_agent(db: AsyncSession, user: User, preferred_mcp_id) -> ai.Engine:
+    """Builder chat uses the agent's preferred text-capable connection when usable, else the user's own key."""
+    return await assistant_engine(db, user, preferred_mcp_id)
